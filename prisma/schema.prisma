@@ -1,0 +1,280 @@
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  // This generates TypeScript code that matches your database
+}
+
+// ============================================
+// ENUMS (Predefined Lists of Values)
+// ============================================
+
+enum UserRole {
+  HOSPITAL      // Can invite doctors, request blood, register donors
+  BLOOD_BANK    // Can register donors only
+  DOCTOR        // Can request blood only
+}
+
+enum BloodGroup {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+}
+
+enum RequestStatus {
+  PENDING       // Just created
+  IN_PROGRESS   // AI agent is searching
+  FULFILLED     // Donor found
+  CANCELLED     // Requester cancelled
+  EXPIRED       // No donor found in time
+}
+
+enum RequestUrgency {
+  CRITICAL      // Life-threatening
+  URGENT        // Needed within hours
+  ROUTINE       // Planned procedure
+}
+
+// ============================================
+// USER AUTHENTICATION & PROFILES
+// ============================================
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  passwordHash  String      // Never store plain passwords!
+  role          UserRole
+  isActive      Boolean     @default(true)
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relationships (one user can be one of these)
+  hospital      Hospital?
+  bloodBank     BloodBank?
+  doctor        Doctor?
+  
+  // All blood requests made by this user
+  bloodRequests BloodRequest[]
+
+  @@map("users") // Table name in database
+}
+
+// Hospital Profile (extends User)
+model Hospital {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name            String
+  address         String
+  city            String
+  state           String
+  pincode         String
+  phone           String
+  latitude        Float?    // For location-based search
+  longitude       Float?
+  
+  licenseNumber   String    @unique  // Government registration
+  
+  // Relationships
+  doctors         Doctor[]           // All doctors in this hospital
+  invites         HospitalInvite[]   // All invite links sent
+  registeredDonors Donor[]           // Donors registered by this hospital
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("hospitals")
+}
+
+// Blood Bank Profile (extends User)
+model BloodBank {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name            String
+  address         String
+  city            String
+  state           String
+  pincode         String
+  phone           String
+  latitude        Float?
+  longitude       Float?
+  
+  licenseNumber   String    @unique
+  
+  // Relationships
+  registeredDonors Donor[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("blood_banks")
+}
+
+// Doctor Profile (extends User, belongs to Hospital)
+model Doctor {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  hospitalId      String
+  hospital        Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  
+  name            String
+  phone           String
+  specialization  String?   // e.g., "Cardiology", "Surgery"
+  registrationNo  String    @unique  // Medical council registration
+
+  hospitalInvite  HospitalInvite?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("doctors")
+  @@index([hospitalId]) // Makes queries faster
+}
+
+// ============================================
+// HOSPITAL INVITE SYSTEM
+// ============================================
+
+model HospitalInvite {
+  id          String    @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  
+  doctorEmail String
+  status      InviteStatus @default(PENDING)
+  
+  // Link to doctor once they register
+  doctorId    String?    @unique  
+  doctor      Doctor?    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  
+  invitedBy   String?    // User ID of hospital admin who sent invite
+  acceptedAt  DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("hospital_invites")
+  @@unique([hospitalId, doctorEmail]) // Prevent duplicate invites
+  @@index([hospitalId])
+  @@index([doctorEmail])
+  @@index([status])
+}
+
+enum InviteStatus {
+  PENDING    // Invite sent, doctor hasn't registered
+  ACCEPTED   // Doctor registered and joined hospital
+  REJECTED   // Doctor explicitly rejected (optional)
+  CANCELLED  // Hospital cancelled the invite
+}
+
+// ============================================
+// DONOR SYSTEM (Privacy-Protected)
+// ============================================
+
+model Donor {
+  id              String      @id @default(uuid())
+  
+  // Who registered this donor?
+  hospitalId      String?
+  hospital        Hospital?   @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  
+  bloodBankId     String?
+  bloodBank       BloodBank? @relation(fields: [bloodBankId], references: [id], onDelete: SetNull)
+  
+  // Personal Information (NEVER shown in UI)
+  name            String
+  email           String?
+  phone           String      @unique  // For WhatsApp contact
+  bloodGroup      BloodGroup
+  
+  // Location (for AI matching)
+  address         String
+  city            String
+  state           String
+  pincode         String
+  latitude        Float
+  longitude       Float
+  
+  // Donor Status
+  isAvailable     Boolean     @default(true)  // Currently available to donate?
+  lastDonationDate DateTime?                   // Track donation frequency
+  
+  // Privacy Flag (for future use)
+  isPublic        Boolean     @default(false)  // Never shown in app
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@map("donors")
+  @@index([bloodGroup])                      // Fast search by blood type
+  @@index([latitude, longitude])             // Fast location search
+  @@index([isAvailable])                     // Fast available donor lookup
+  @@index([hospitalId])
+  @@index([bloodBankId])
+}
+
+// ============================================
+// BLOOD REQUEST SYSTEM
+// ============================================
+
+model BloodRequest {
+  id              String          @id @default(uuid())
+  
+  // Who made the request?
+  requesterId     String
+  requester       User            @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  
+  // What blood is needed?
+  bloodGroup      BloodGroup
+  unitsRequired   Int             // Number of units needed
+  urgency         RequestUrgency
+  status          RequestStatus   @default(PENDING)
+  
+  // Patient Information
+  patientName     String
+  patientAge      Int
+  patientGender   String
+  
+  // Location (for donor matching)
+  hospitalName    String
+  hospitalAddress String
+  city            String
+  state           String
+  latitude        Float
+  longitude       Float
+  
+  // Medical Details
+  requiredBy      DateTime        // Deadline
+  medicalReason   String?         // Optional: why blood is needed
+  
+  // AI Agent Tracking
+  aiProcessedAt   DateTime?       // When AI started searching
+  donorsContacted Int             @default(0)  // How many donors AI contacted
+  
+  // Notes
+  notes           String?
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("blood_requests")
+  @@index([requesterId])
+  @@index([status])
+  @@index([bloodGroup])
+  @@index([urgency])
+  @@index([requiredBy])
+}
