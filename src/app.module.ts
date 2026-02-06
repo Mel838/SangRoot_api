@@ -9,6 +9,8 @@ import { AppService } from './app.service';
 import { HttpLoggerMiddleware } from './common/utils/http-logger.middleware';
 import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { HospitalsModule } from './modules/hospitals/hospitals.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { PrismaModule } from './prisma/prisma.module';
       isGlobal: true,
     }),
     PrismaModule,
+    AuthModule,
+    HospitalsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
