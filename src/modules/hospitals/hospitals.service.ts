@@ -6,11 +6,52 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InviteDoctorDto } from './dto/invite-doctor.dto';
+import { UpdateHospitalProfileDto } from './dto/update-hospital-profile.dto';
 import { UserRole, InviteStatus } from '@prisma/client';
 
 @Injectable()
 export class HospitalsService {
   constructor(private prisma: PrismaService) {}
+
+  async getProfile(hospitalUserId: string) {
+    const hospitalUser = await this.prisma.user.findUnique({
+      where: { id: hospitalUserId },
+      include: { hospital: true },
+    });
+
+    if (!hospitalUser) {
+      throw new NotFoundException('Hospital user not found');
+    }
+
+    if (!hospitalUser.hospital) {
+      throw new NotFoundException('Hospital profile not found');
+    }
+
+    return hospitalUser.hospital;
+  }
+
+  async updateProfile(
+    hospitalUserId: string,
+    dto: UpdateHospitalProfileDto,
+  ) {
+    const hospitalUser = await this.prisma.user.findUnique({
+      where: { id: hospitalUserId },
+      include: { hospital: true },
+    });
+
+    if (!hospitalUser) {
+      throw new NotFoundException('Hospital user not found');
+    }
+
+    if (!hospitalUser.hospital) {
+      throw new NotFoundException('Hospital profile not found');
+    }
+
+    return this.prisma.hospital.update({
+      where: { id: hospitalUser.hospital.id },
+      data: dto,
+    });
+  }
 
   async inviteDoctor(hospitalUserId: string, inviteDoctorDto: InviteDoctorDto) {
     const { doctorEmail } = inviteDoctorDto;
