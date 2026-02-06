@@ -11,6 +11,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HospitalsModule } from './modules/hospitals/hospitals.module';
+import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { HospitalsModule } from './modules/hospitals/hospitals.module';
     PrismaModule,
     AuthModule,
     HospitalsModule,
+    BloodBanksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
