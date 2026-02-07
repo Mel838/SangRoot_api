@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { InviteDoctorDto } from './dto/invite-doctor.dto';
 import { UpdateHospitalProfileDto } from './dto/update-hospital-profile.dto';
+import { RegisterDonorDto } from './dto/register-donor.dto';
 import { UserRole, InviteStatus } from '@prisma/client';
 
 @Injectable()
@@ -109,5 +110,50 @@ export class HospitalsService {
       status: invite.status,
       createdAt: invite.createdAt,
     };
+  }
+
+  async registerDonor(hospitalUserId: string, dto: RegisterDonorDto) {
+    // Get hospital user
+    const hospitalUser = await this.prisma.user.findUnique({
+      where: { id: hospitalUserId },
+      include: { hospital: true },
+    });
+
+    if (!hospitalUser) {
+      throw new NotFoundException('Hospital user not found');
+    }
+
+    if (!hospitalUser.hospital) {
+      throw new NotFoundException('Hospital profile not found');
+    }
+
+    // Check if donor with same phone already exists
+    const existingDonor = await this.prisma.donor.findUnique({
+      where: { phone: dto.phone },
+    });
+
+    if (existingDonor) {
+      throw new BadRequestException('Donor with this phone number already registered');
+    }
+
+    // Create donor
+    const donor = await this.prisma.donor.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        bloodGroup: dto.bloodGroup,
+        address: dto.address,
+        city: dto.city,
+        state: dto.state,
+        pincode: dto.pincode,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        isAvailable: dto.isAvailable ?? true,
+        hospitalId: hospitalUser.hospital.id,
+      },
+    });
+
+    return donor;
   }
 }

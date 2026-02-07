@@ -12,6 +12,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { HospitalsModule } from './modules/hospitals/hospitals.module';
 import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
+import { DoctorsModule } from './modules/doctors/doctors.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
     AuthModule,
     HospitalsModule,
     BloodBanksModule,
+    DoctorsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

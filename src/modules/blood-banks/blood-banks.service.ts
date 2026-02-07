@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateBloodBankProfileDto } from './dto/update-blood-bank-profile.dto';
+import { RegisterDonorDto } from './dto/register-donor.dto';
 
 @Injectable()
 export class BloodBanksService {
@@ -78,5 +79,50 @@ export class BloodBanksService {
       },
     });
     return updated;
+  }
+
+  async registerDonor(bloodBankUserId: string, dto: RegisterDonorDto) {
+    // Get blood bank user
+    const bloodBankUser = await this.prisma.user.findUnique({
+      where: { id: bloodBankUserId },
+      include: { bloodBank: true },
+    });
+
+    if (!bloodBankUser) {
+      throw new NotFoundException('Blood bank user not found');
+    }
+
+    if (!bloodBankUser.bloodBank) {
+      throw new NotFoundException('Blood bank profile not found');
+    }
+
+    // Check if donor with same phone already exists
+    const existingDonor = await this.prisma.donor.findUnique({
+      where: { phone: dto.phone },
+    });
+
+    if (existingDonor) {
+      throw new BadRequestException('Donor with this phone number already registered');
+    }
+
+    // Create donor
+    const donor = await this.prisma.donor.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        bloodGroup: dto.bloodGroup,
+        address: dto.address,
+        city: dto.city,
+        state: dto.state,
+        pincode: dto.pincode,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        isAvailable: dto.isAvailable ?? true,
+        bloodBankId: bloodBankUser.bloodBank.id,
+      },
+    });
+
+    return donor;
   }
 }
