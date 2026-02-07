@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { winstonLogger } from "./common/utils/winston.logger"
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -16,6 +17,8 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  // Cookie parser for refresh token cookie handling
+  app.use(cookieParser());
   
   await app.listen(process.env.PORT ?? 3000);
 }

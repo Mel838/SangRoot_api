@@ -9,6 +9,8 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole, InviteStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import { randomUUID } from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
@@ -21,6 +23,103 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
   ) {}
+
+  // --- Refresh token helpers ---
+  private REFRESH_TOKEN_DAYS = 30; // lifetime
+
+  private generateRandomToken(len = 48) {
+    return crypto.randomBytes(len).toString('base64url');
+  }
+
+  // Creates and stores a refresh token record and returns the cookie value and maxAge
+  async createAndStoreRefreshToken(userId: string): Promise<{ cookieValue: string; maxAge: number }> {
+    const tokenId = randomUUID();
+    const token = this.generateRandomToken();
+    const tokenHash = await bcrypt.hash(token, 10);
+    const expiresAt = new Date(Date.now() + this.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+
+    await (this.prisma as any).refreshToken.create({
+      data: {
+        id: tokenId,
+        userId,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    const cookieValue = `${tokenId}.${token}`;
+    const maxAge = this.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000;
+    return { cookieValue, maxAge };
+  }
+
+  // Verify a cookie value in form "id.token" and return the token record and user
+  private async findRefreshTokenRecord(cookieValue: string) {
+    if (!cookieValue) return null;
+    const parts = cookieValue.split('.');
+    if (parts.length < 2) return null;
+    const id = parts.shift();
+    const token = parts.join('.');
+
+    const record = await (this.prisma as any).refreshToken.findUnique({
+      where: { id },
+      include: { user: true },
+    });
+
+    if (!record) return null;
+    if (record.revoked) return null;
+    if (record.expiresAt.getTime() < Date.now()) return null;
+
+    const isValid = await bcrypt.compare(token, record.tokenHash);
+    if (!isValid) return null;
+
+    return { record, token };
+  }
+
+  // Rotate refresh token: validate old cookie, revoke old, create new, return new cookie and user
+  async rotateRefreshToken(cookieValue: string): Promise<{ cookieValue: string; maxAge: number; user: any } | null> {
+    const found = await this.findRefreshTokenRecord(cookieValue);
+    if (!found) return null;
+
+    const { record } = found;
+
+    // revoke old
+    await (this.prisma as any).refreshToken.update({
+      where: { id: record.id },
+      data: { revoked: true },
+    });
+
+    // create new
+    const { cookieValue: newCookieValue, maxAge } = await this.createAndStoreRefreshToken(record.userId);
+
+    return { cookieValue: newCookieValue, maxAge, user: record.user };
+  }
+
+  // Revoke a single refresh token (by cookie) - used on logout
+  async revokeRefreshToken(cookieValue: string): Promise<void> {
+    const parts = cookieValue ? cookieValue.split('.') : [];
+    if (parts.length < 2) return;
+    const id = parts.shift();
+    try {
+      await (this.prisma as any).refreshToken.update({ where: { id }, data: { revoked: true } });
+    } catch (e) {
+      // ignore if not found
+    }
+  }
+
+  // Revoke all tokens for a user (optional)
+  async revokeAllRefreshTokensForUser(userId: string): Promise<void> {
+    await (this.prisma as any).refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
+  }
+
+  // Create access token for a user object
+  createAccessTokenForUser(user: { id: string; email: string; role: string }): string {
+    const payload: JwtPayload = {
+      sub: user.id,
+      role: user.role,
+      email: user.email,
+    };
+    return this.jwtService.sign(payload);
+  }
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
     const { email, password, role } = registerDto;
