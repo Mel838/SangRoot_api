@@ -64,7 +64,7 @@ export class AuthController {
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<AuthResponseDto> {
-    const raw = req.cookies?.refreshToken || (typeof req.headers.cookie === 'string' && req.headers.cookie.includes('refreshToken=') ? req.headers.cookie.split('refreshToken=')[1].split(';')[0] : undefined);
+    const raw = req.cookies?.refreshToken || req.body?.refreshToken || (typeof req.headers.cookie === 'string' && req.headers.cookie.includes('refreshToken=') ? req.headers.cookie.split('refreshToken=')[1].split(';')[0] : undefined);
     if (!raw) {
       throw new Error('Refresh token not provided');
     }

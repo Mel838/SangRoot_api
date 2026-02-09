@@ -8,6 +8,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
      logger: winstonLogger,
   });
+
+  // Enable CORS
+  app.enableCors({
+    origin: '*',
+  });
   
   // Enable validation pipe globally
   app.useGlobalPipes(
