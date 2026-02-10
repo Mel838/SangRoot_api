@@ -10,6 +10,9 @@ export class PrismaService
   constructor() {
     const adapter = new PrismaPg({
       connectionString: process.env.DATABASE_URL!,
+      pool: {
+        ssl: { rejectUnauthorized: false },
+      },
     });
 
     super({ adapter });
