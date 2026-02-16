@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
+import { RegisterDonorDto } from '../hospitals/dto/register-donor.dto';
 
 @Injectable()
 export class DoctorsService {
@@ -79,5 +80,50 @@ export class DoctorsService {
       },
     });
     return updated;
+  }
+
+  async registerDonor(userId: string, dto: RegisterDonorDto) {
+    // Get doctor and their hospital
+    const doctor = await this.prisma.doctor.findUnique({
+      where: { userId },
+      include: { hospital: true },
+    });
+
+    if (!doctor) {
+      throw new NotFoundException('Doctor profile not found');
+    }
+
+    if (!doctor.hospitalId) {
+      throw new BadRequestException('Doctor is not associated with a hospital');
+    }
+
+    // Check if donor with same phone already exists
+    const existingDonor = await this.prisma.donor.findUnique({
+      where: { phone: dto.phone },
+    });
+
+    if (existingDonor) {
+      throw new BadRequestException('Donor with this phone number already registered');
+    }
+
+    // Create donor
+    const donor = await this.prisma.donor.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        phone: dto.phone,
+        bloodGroup: dto.bloodGroup,
+        address: dto.address,
+        city: dto.city,
+        state: dto.state,
+        pincode: dto.pincode,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        isAvailable: dto.isAvailable ?? true,
+        hospitalId: doctor.hospitalId,
+      },
+    });
+
+    return donor;
   }
 }
