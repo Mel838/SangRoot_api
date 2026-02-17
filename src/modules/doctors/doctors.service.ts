@@ -58,8 +58,12 @@ export class DoctorsService {
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.specialization !== undefined && { specialization: dto.specialization }),
-        ...(dto.registrationNo !== undefined && { registrationNo: dto.registrationNo }),
+        ...(dto.specialization !== undefined && {
+          specialization: dto.specialization,
+        }),
+        ...(dto.registrationNo !== undefined && {
+          registrationNo: dto.registrationNo,
+        }),
       },
       select: {
         id: true,
@@ -103,7 +107,9 @@ export class DoctorsService {
     });
 
     if (existingDonor) {
-      throw new BadRequestException('Donor with this phone number already registered');
+      throw new BadRequestException(
+        'Donor with this phone number already registered',
+      );
     }
 
     // Create donor

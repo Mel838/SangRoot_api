@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UserRole, InviteStatus } from '@prisma/client';
+import { UserRole, InviteStatus, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { randomUUID } from 'crypto';
@@ -32,13 +32,17 @@ export class AuthService {
   }
 
   // Creates and stores a refresh token record and returns the cookie value and maxAge
-  async createAndStoreRefreshToken(userId: string): Promise<{ cookieValue: string; maxAge: number }> {
+  async createAndStoreRefreshToken(
+    userId: string,
+  ): Promise<{ cookieValue: string; maxAge: number }> {
     const tokenId = randomUUID();
     const token = this.generateRandomToken();
     const tokenHash = await bcrypt.hash(token, 10);
-    const expiresAt = new Date(Date.now() + this.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + this.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
+    );
 
-    await (this.prisma as any).refreshToken.create({
+    await this.prisma.refreshToken.create({
       data: {
         id: tokenId,
         userId,
@@ -60,7 +64,7 @@ export class AuthService {
     const id = parts.shift();
     const token = parts.join('.');
 
-    const record = await (this.prisma as any).refreshToken.findUnique({
+    const record = await this.prisma.refreshToken.findUnique({
       where: { id },
       include: { user: true },
     });
@@ -76,20 +80,23 @@ export class AuthService {
   }
 
   // Rotate refresh token: validate old cookie, revoke old, create new, return new cookie and user
-  async rotateRefreshToken(cookieValue: string): Promise<{ cookieValue: string; maxAge: number; user: any } | null> {
+  async rotateRefreshToken(
+    cookieValue: string,
+  ): Promise<{ cookieValue: string; maxAge: number; user: User } | null> {
     const found = await this.findRefreshTokenRecord(cookieValue);
     if (!found) return null;
 
     const { record } = found;
 
     // revoke old
-    await (this.prisma as any).refreshToken.update({
+    await this.prisma.refreshToken.update({
       where: { id: record.id },
       data: { revoked: true },
     });
 
     // create new
-    const { cookieValue: newCookieValue, maxAge } = await this.createAndStoreRefreshToken(record.userId);
+    const { cookieValue: newCookieValue, maxAge } =
+      await this.createAndStoreRefreshToken(record.userId);
 
     return { cookieValue: newCookieValue, maxAge, user: record.user };
   }
@@ -100,19 +107,29 @@ export class AuthService {
     if (parts.length < 2) return;
     const id = parts.shift();
     try {
-      await (this.prisma as any).refreshToken.update({ where: { id }, data: { revoked: true } });
-    } catch (e) {
+      await this.prisma.refreshToken.update({
+        where: { id },
+        data: { revoked: true },
+      });
+    } catch {
       // ignore if not found
     }
   }
 
   // Revoke all tokens for a user (optional)
   async revokeAllRefreshTokensForUser(userId: string): Promise<void> {
-    await (this.prisma as any).refreshToken.updateMany({ where: { userId }, data: { revoked: true } });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId },
+      data: { revoked: true },
+    });
   }
 
   // Create access token for a user object
-  createAccessTokenForUser(user: { id: string; email: string; role: string }): string {
+  createAccessTokenForUser(user: {
+    id: string;
+    email: string;
+    role: string;
+  }): string {
     const payload: JwtPayload = {
       sub: user.id,
       role: user.role,
@@ -126,7 +143,9 @@ export class AuthService {
 
     // Validate role
     if (role !== UserRole.HOSPITAL && role !== UserRole.BLOOD_BANK) {
-      throw new BadRequestException('Role must be either HOSPITAL or BLOOD_BANK');
+      throw new BadRequestException(
+        'Role must be either HOSPITAL or BLOOD_BANK',
+      );
     }
 
     // Check if user already exists
@@ -246,8 +265,18 @@ export class AuthService {
     };
   }
 
-  async acceptInvite(acceptInviteDto: AcceptInviteDto): Promise<AuthResponseDto> {
-    const { inviteId, email, password, name, phone, registrationNo, specialization } = acceptInviteDto;
+  async acceptInvite(
+    acceptInviteDto: AcceptInviteDto,
+  ): Promise<AuthResponseDto> {
+    const {
+      inviteId,
+      email,
+      password,
+      name,
+      phone,
+      registrationNo,
+      specialization,
+    } = acceptInviteDto;
 
     // Find invite
     const invite = await this.prisma.hospitalInvite.findUnique({
@@ -261,7 +290,9 @@ export class AuthService {
 
     // Validate invite status
     if (invite.status !== InviteStatus.PENDING) {
-      throw new BadRequestException('Invite has already been used or cancelled');
+      throw new BadRequestException(
+        'Invite has already been used or cancelled',
+      );
     }
 
     // Validate email matches invite

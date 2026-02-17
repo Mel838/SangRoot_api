@@ -61,7 +61,9 @@ export class BloodBanksService {
         ...(dto.phone !== undefined && { phone: dto.phone }),
         ...(dto.latitude !== undefined && { latitude: dto.latitude }),
         ...(dto.longitude !== undefined && { longitude: dto.longitude }),
-        ...(dto.licenseNumber !== undefined && { licenseNumber: dto.licenseNumber }),
+        ...(dto.licenseNumber !== undefined && {
+          licenseNumber: dto.licenseNumber,
+        }),
       },
       select: {
         id: true,
@@ -102,7 +104,9 @@ export class BloodBanksService {
     });
 
     if (existingDonor) {
-      throw new BadRequestException('Donor with this phone number already registered');
+      throw new BadRequestException(
+        'Donor with this phone number already registered',
+      );
     }
 
     // Create donor

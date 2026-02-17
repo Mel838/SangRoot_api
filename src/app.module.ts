@@ -1,8 +1,4 @@
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-} from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -13,6 +9,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { HospitalsModule } from './modules/hospitals/hospitals.module';
 import { DoctorsModule } from './modules/doctors/doctors.module';
 import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
+import { AgentsModule } from './services/agents/agents.module';
 
 @Module({
   imports: [
@@ -24,14 +21,13 @@ import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
     HospitalsModule,
     DoctorsModule,
     BloodBanksModule,
+    AgentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer
-      .apply(HttpLoggerMiddleware)
-      .forRoutes('*');
+    consumer.apply(HttpLoggerMiddleware).forRoutes('*');
   }
 }

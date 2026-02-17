@@ -31,10 +31,7 @@ export class HospitalsService {
     return hospitalUser.hospital;
   }
 
-  async updateProfile(
-    hospitalUserId: string,
-    dto: UpdateHospitalProfileDto,
-  ) {
+  async updateProfile(hospitalUserId: string, dto: UpdateHospitalProfileDto) {
     const hospitalUser = await this.prisma.user.findUnique({
       where: { id: hospitalUserId },
       include: { hospital: true },
@@ -90,7 +87,9 @@ export class HospitalsService {
         throw new BadRequestException('Invite already sent to this email');
       }
       if (existingInvite.status === InviteStatus.ACCEPTED) {
-        throw new BadRequestException('Doctor has already been invited and accepted');
+        throw new BadRequestException(
+          'Doctor has already been invited and accepted',
+        );
       }
     }
 
@@ -133,7 +132,9 @@ export class HospitalsService {
     });
 
     if (existingDonor) {
-      throw new BadRequestException('Donor with this phone number already registered');
+      throw new BadRequestException(
+        'Donor with this phone number already registered',
+      );
     }
 
     // Create donor
