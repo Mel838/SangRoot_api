@@ -1,46 +1,46 @@
+import type { BloodGroup } from "@prisma/client";
 import {
-  IsString,
-  IsEmail,
-  IsPhoneNumber,
-  IsNumber,
-  IsOptional,
-  IsBoolean,
-} from 'class-validator';
-import { BloodGroup } from '@prisma/client';
+	IsBoolean,
+	IsEmail,
+	IsNumber,
+	IsOptional,
+	IsPhoneNumber,
+	IsString,
+} from "class-validator";
 
 export class RegisterDonorDto {
-  @IsString()
-  name: string;
+	@IsString()
+	name: string;
 
-  @IsEmail()
-  @IsOptional()
-  email?: string;
+	@IsEmail()
+	@IsOptional()
+	email?: string;
 
-  @IsPhoneNumber()
-  phone: string;
+	@IsPhoneNumber()
+	phone: string;
 
-  @IsString()
-  bloodGroup: BloodGroup;
+	@IsString()
+	bloodGroup: BloodGroup;
 
-  @IsString()
-  address: string;
+	@IsString()
+	address: string;
 
-  @IsString()
-  city: string;
+	@IsString()
+	city: string;
 
-  @IsString()
-  state: string;
+	@IsString()
+	state: string;
 
-  @IsString()
-  pincode: string;
+	@IsString()
+	pincode: string;
 
-  @IsNumber()
-  latitude: number;
+	@IsNumber()
+	latitude: number;
 
-  @IsNumber()
-  longitude: number;
+	@IsNumber()
+	longitude: number;
 
-  @IsBoolean()
-  @IsOptional()
-  isAvailable?: boolean;
+	@IsBoolean()
+	@IsOptional()
+	isAvailable?: boolean;
 }

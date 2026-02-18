@@ -1,25 +1,25 @@
-import { IsEmail, IsString, MinLength, IsUUID } from 'class-validator';
+import { IsEmail, IsString, IsUUID, MinLength } from "class-validator";
 
 export class AcceptInviteDto {
-  @IsUUID()
-  inviteId: string;
+	@IsUUID()
+	inviteId: string;
 
-  @IsEmail()
-  email: string;
+	@IsEmail()
+	email: string;
 
-  @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
-  password: string;
+	@IsString()
+	@MinLength(8, { message: "Password must be at least 8 characters long" })
+	password: string;
 
-  @IsString()
-  name: string;
+	@IsString()
+	name: string;
 
-  @IsString()
-  phone: string;
+	@IsString()
+	phone: string;
 
-  @IsString()
-  registrationNo: string;
+	@IsString()
+	registrationNo: string;
 
-  @IsString()
-  specialization?: string;
+	@IsString()
+	specialization?: string;
 }

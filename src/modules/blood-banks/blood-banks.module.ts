@@ -1,10 +1,10 @@
-import { Module } from '@nestjs/common';
-import { BloodBanksController } from './blood-banks.controller';
-import { BloodBanksService } from './blood-banks.service';
+import { Module } from "@nestjs/common";
+import { BloodBanksController } from "./blood-banks.controller";
+import { BloodBanksService } from "./blood-banks.service";
 
 @Module({
-  controllers: [BloodBanksController],
-  providers: [BloodBanksService],
-  exports: [BloodBanksService],
+	controllers: [BloodBanksController],
+	providers: [BloodBanksService],
+	exports: [BloodBanksService],
 })
 export class BloodBanksModule {}
