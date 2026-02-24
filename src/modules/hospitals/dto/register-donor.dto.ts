@@ -2,11 +2,11 @@ import {
   IsString,
   IsEmail,
   IsPhoneNumber,
-  IsNumber,
   IsOptional,
-  IsBoolean,
+  IsEnum,
+  IsDateString,
 } from 'class-validator';
-import { BloodGroup } from '@prisma/client';
+import { BloodGroup, Gender, CameroonRegion } from '@prisma/client';
 
 export class RegisterDonorDto {
   @IsString()
@@ -19,28 +19,21 @@ export class RegisterDonorDto {
   @IsPhoneNumber()
   phone: string;
 
-  @IsString()
+  @IsEnum(BloodGroup)
   bloodGroup: BloodGroup;
 
-  @IsString()
-  address: string;
+  @IsDateString()
+  dateBirth: string;
+
+  @IsEnum(CameroonRegion)
+  region: CameroonRegion;
 
   @IsString()
-  city: string;
+  town: string;
 
   @IsString()
-  state: string;
+  neighbourhood?: string;
 
-  @IsString()
-  pincode: string;
-
-  @IsNumber()
-  latitude: number;
-
-  @IsNumber()
-  longitude: number;
-
-  @IsBoolean()
-  @IsOptional()
-  isAvailable?: boolean;
+  @IsEnum(Gender)
+  genre: Gender;
 }

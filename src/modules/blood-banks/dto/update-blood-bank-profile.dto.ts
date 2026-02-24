@@ -1,40 +1,40 @@
-import { IsString, IsOptional, IsNumber, MinLength } from 'class-validator';
+import { IsString, IsOptional, IsEnum, IsNumber } from 'class-validator';
+import { CameroonRegion } from '@prisma/client';
 
 export class UpdateBloodBankProfileDto {
-  @IsOptional()
   @IsString()
-  @MinLength(1)
+  @IsOptional()
   name?: string;
 
-  @IsOptional()
   @IsString()
-  address?: string;
-
   @IsOptional()
-  @IsString()
-  city?: string;
-
-  @IsOptional()
-  @IsString()
-  state?: string;
-
-  @IsOptional()
-  @IsString()
-  pincode?: string;
-
-  @IsOptional()
-  @IsString()
   phone?: string;
 
+  @IsEnum(CameroonRegion)
   @IsOptional()
+  region?: CameroonRegion;
+
+  @IsString()
+  @IsOptional()
+  town?: string;
+
+  @IsString()
+  @IsOptional()
+  neighbourhood?: string;
+
+  @IsString()
+  @IsOptional()
+  address?: string;
+
   @IsNumber()
+  @IsOptional()
   latitude?: number;
 
-  @IsOptional()
   @IsNumber()
+  @IsOptional()
   longitude?: number;
 
-  @IsOptional()
   @IsString()
+  @IsOptional()
   licenseNumber?: string;
 }

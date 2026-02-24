@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsNumber, MinLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsEnum,
+  MinLength,
+} from 'class-validator';
+import { CameroonRegion } from '@prisma/client';
 
 export class UpdateHospitalProfileDto {
   @IsOptional()
@@ -8,23 +15,23 @@ export class UpdateHospitalProfileDto {
 
   @IsOptional()
   @IsString()
-  address?: string;
-
-  @IsOptional()
-  @IsString()
-  city?: string;
-
-  @IsOptional()
-  @IsString()
-  state?: string;
-
-  @IsOptional()
-  @IsString()
-  pincode?: string;
-
-  @IsOptional()
-  @IsString()
   phone?: string;
+
+  @IsOptional()
+  @IsEnum(CameroonRegion)
+  region?: CameroonRegion;
+
+  @IsOptional()
+  @IsString()
+  town?: string;
+
+  @IsOptional()
+  @IsString()
+  neighbourhood?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
 
   @IsOptional()
   @IsNumber()
