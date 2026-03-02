@@ -18,9 +18,12 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "prisma generate",
+    "start:agent": "ts-node --project tsconfig.agent.json src/services/agents/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.37",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -29,6 +32,11 @@
     "@nestjs/platform-express": "^11.0.1",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.4.1",
+    "@voltagent/core": "^2.6.2",
+    "@voltagent/logger": "^2.0.2",
+    "@voltagent/postgres": "^2.1.2",
+    "@voltagent/server-hono": "^2.0.7",
+    "ai": "^6.0.105",
     "@types/nodemailer": "^7.0.11",
     "bcrypt": "^5.1.1",
     "class-transformer": "^0.5.1",
@@ -41,6 +49,7 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "twilio": "^5.12.2",
     "winston": "^3.19.0"
   },
   "devDependencies": {
