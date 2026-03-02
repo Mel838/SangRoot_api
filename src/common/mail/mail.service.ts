@@ -8,33 +8,39 @@ import SMTPTransport from 'nodemailer/lib/smtp-transport';
 export class MailService implements OnModuleInit {
   private readonly logger = new Logger(MailService.name);
   private transporter: Transporter;
-  private isDev: boolean;
 
   constructor(private configService: ConfigService) {
-    this.isDev = this.configService.get<string>('NODE_ENV') !== 'production';
-    // Transporter is initialised lazily in onModuleInit so async work is safe
+    // Transporter is initialised in onModuleInit so async work is safe
   }
 
   async onModuleInit(): Promise<void> {
-    if (this.isDev) {
-      // Auto-generate a real Ethereal test account — no credentials needed
-      const testAccount = await nodemailer.createTestAccount();
-      this.logger.log(`📧 Ethereal test account created: ${testAccount.user}`);
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: { user: testAccount.user, pass: testAccount.pass },
-      });
-    } else {
+    const mailUser = this.configService.get<string>('MAIL_USER');
+
+    if (mailUser) {
+      // Use the configured SMTP provider (Brevo, Gmail, etc.)
       this.transporter = nodemailer.createTransport({
         host: this.configService.get<string>('MAIL_HOST'),
         port: this.configService.get<number>('MAIL_PORT', 587),
         secure: this.configService.get<string>('MAIL_SECURE') === 'true',
         auth: {
-          user: this.configService.get<string>('MAIL_USER'),
+          user: mailUser,
           pass: this.configService.get<string>('MAIL_PASS'),
         },
+      });
+      this.logger.log(
+        `📧 Mailer ready — SMTP: ${this.configService.get<string>('MAIL_HOST')}`,
+      );
+    } else {
+      // No credentials — spin up a free Ethereal sandbox account
+      const testAccount = await nodemailer.createTestAccount();
+      this.logger.warn(
+        `📧 No MAIL_USER set — using Ethereal sandbox: ${testAccount.user}`,
+      );
+      this.transporter = nodemailer.createTransport({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: { user: testAccount.user, pass: testAccount.pass },
       });
     }
   }
@@ -44,12 +50,10 @@ export class MailService implements OnModuleInit {
     inviteId: string,
     hospitalName: string,
   ): Promise<void> {
-    const from = this.isDev
-      ? 'SangRoot Dev <noreply@sangroot.com>'
-      : this.configService.get<string>(
-          'MAIL_FROM',
-          'SangRoot <noreply@sangroot.com>',
-        );
+    const from = this.configService.get<string>(
+      'MAIL_FROM',
+      'SangRoot <noreply@sangroot.com>',
+    );
 
     const mailOptions = {
       from,
@@ -95,8 +99,8 @@ export class MailService implements OnModuleInit {
         )) as SMTPTransport.SentMessageInfo;
       this.logger.log(`Invite email sent to ${to} (invite: ${inviteId})`);
 
-      // In dev, log the Ethereal preview URL so you can open it in the browser
-      if (this.isDev) {
+      // If using Ethereal (no MAIL_USER configured) log the preview URL
+      if (!this.configService.get<string>('MAIL_USER')) {
         const previewUrl: string | false = nodemailer.getTestMessageUrl(info);
         this.logger.log(`📬 Preview email at: ${String(previewUrl)}`);
       }
