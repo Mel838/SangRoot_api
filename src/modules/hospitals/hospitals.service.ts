@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { MailService } from '../../common/mail/mail.service';
 import { InviteDoctorDto } from './dto/invite-doctor.dto';
 import { UpdateHospitalProfileDto } from './dto/update-hospital-profile.dto';
 import { RegisterDonorDto } from './dto/register-donor.dto';
@@ -12,7 +13,10 @@ import { UserRole, InviteStatus } from '@prisma/client';
 
 @Injectable()
 export class HospitalsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private mailService: MailService,
+  ) {}
 
   async getProfile(hospitalUserId: string) {
     const hospitalUser = await this.prisma.user.findUnique({
@@ -102,6 +106,13 @@ export class HospitalsService {
         invitedBy: hospitalUserId,
       },
     });
+
+    // Send invite email to the doctor
+    await this.mailService.sendDoctorInvite(
+      invite.doctorEmail,
+      invite.id,
+      hospitalUser.hospital.name || 'the hospital',
+    );
 
     return {
       id: invite.id,
