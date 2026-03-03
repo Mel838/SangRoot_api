@@ -17,10 +17,6 @@ function formatBloodGroup(bg: string): string {
 // DONOR OUTREACH AGENT TOOLS
 // ---------------------------------------------------------------------------
 
-/**
- * Basic — Fetch registered donors matching blood group + town from the backend API.
- * The agent calls this first to get the contact list.
- */
 export const fetchMatchingDonors = createTool({
   name: 'fetch_matching_donors',
   description:
@@ -82,10 +78,6 @@ export const fetchMatchingDonors = createTool({
   },
 });
 
-/**
- * Intermediate — Send a WhatsApp outreach message to a single donor.
- * Returns the Twilio message SID and delivery status.
- */
 export const sendDonorOutreachMessage = createTool({
   name: 'send_donor_outreach_message',
   description:
@@ -112,10 +104,6 @@ export const sendDonorOutreachMessage = createTool({
   },
 });
 
-/**
- * Advanced — Record a donor's response (availability status) against a blood request.
- * This persists the outreach outcome to the backend for eligibility filtering.
- */
 export const recordDonorResponse = createTool({
   name: 'record_donor_response',
   description:
@@ -155,9 +143,6 @@ export const recordDonorResponse = createTool({
 // BLOOD BANK LIAISON AGENT TOOLS
 // ---------------------------------------------------------------------------
 
-/**
- * Basic — Fetch blood banks in the same town as the requesting hospital.
- */
 export const fetchNearbyBloodBanks = createTool({
   name: 'fetch_nearby_blood_banks',
   description:
@@ -195,9 +180,6 @@ export const fetchNearbyBloodBanks = createTool({
   },
 });
 
-/**
- * Intermediate — Send a WhatsApp notification to a blood bank about an active request.
- */
 export const sendBloodBankNotification = createTool({
   name: 'send_blood_bank_notification',
   description:
@@ -263,9 +245,6 @@ export const sendBloodBankNotification = createTool({
   },
 });
 
-/**
- * Advanced — Record a blood bank's availability response against a blood request.
- */
 export const recordBloodBankResponse = createTool({
   name: 'record_blood_bank_response',
   description:
@@ -330,9 +309,6 @@ export const recordBloodBankResponse = createTool({
 // RESULT REPORTING AGENT TOOLS
 // ---------------------------------------------------------------------------
 
-/**
- * Basic — Fetch the aggregated eligibility summary for a request (produced by Eligibility Agent).
- */
 export const fetchEligibilitySummary = createTool({
   name: 'fetch_eligibility_summary',
   description:
@@ -346,9 +322,7 @@ export const fetchEligibilitySummary = createTool({
 
     const res = await fetch(
       `${apiUrl}/internal/agents/eligibility-summary/${requestId}`,
-      {
-        headers: { 'x-agent-key': apiKey },
-      },
+      { headers: { 'x-agent-key': apiKey } },
     );
 
     if (!res.ok) {
@@ -360,13 +334,10 @@ export const fetchEligibilitySummary = createTool({
   },
 });
 
-/**
- * Intermediate — Persist the final doctor-facing report and update the BloodRequest status.
- */
 export const persistFinalReport = createTool({
   name: 'persist_final_report',
   description:
-    'Save the final structured report to the BloodRequest record and update its status (FULFILLED, PARTIAL, or EXPIRED). This makes the summary visible to the requesting doctor in the app.',
+    'Save the final structured report to the BloodRequest record and update its status. This makes the summary visible to the requesting doctor in the app.',
   parameters: z.object({
     requestId: z.string().uuid().describe('The BloodRequest ID'),
     status: z
@@ -419,13 +390,10 @@ export const persistFinalReport = createTool({
   },
 });
 
-/**
- * Advanced — Send a WhatsApp progress update to the requesting doctor.
- */
 export const sendDoctorProgressUpdate = createTool({
   name: 'send_doctor_progress_update',
   description:
-    "Send a concise WhatsApp progress update to the requesting doctor. Use for high-level updates (e.g. 'Outreach started', 'X donors confirmed') and for the final summary. Never include raw donor data.",
+    'Send a concise WhatsApp progress update to the requesting doctor. Use for high-level updates and the final summary. Never include raw donor data.',
   parameters: z.object({
     doctorPhone: z
       .string()

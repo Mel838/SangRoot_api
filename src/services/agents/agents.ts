@@ -14,16 +14,18 @@ import {
   resultReportingAgentTools,
 } from './tools';
 
-const databaseUrl =
-  process.env.DATABASE_URL ?? 'postgresql://localhost:5432/sangroot';
-
-/**
- * Shared memory adapter — all agents share the same PostgreSQL-backed memory
- * so the Coordinator can track full request state across the sub-agent lifecycle.
- */
 const sharedMemory = new Memory({
   storage: new PostgreSQLMemoryAdapter({
-    connection: databaseUrl,
+    connection: {
+      host: process.env.DB_HOST!,
+      port: parseInt(process.env.DB_PORT ?? '5432', 10),
+      user: process.env.DB_USERNAME!,
+      password: process.env.DB_PASSWORD!,
+      database: process.env.DB_NAME!,
+      ssl: {
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true',
+      },
+    },
     tablePrefix: 'sangroot_agent_memory',
   }),
 });
@@ -38,6 +40,7 @@ const donorOutreachAgent = new Agent({
   model: 'openai/gpt-4o-mini',
   tools: donorOutreachAgentTools,
   memory: sharedMemory,
+  maxSteps: 20,
 });
 
 // ---------------------------------------------------------------------------
@@ -50,6 +53,7 @@ const bloodBankLiaisonAgent = new Agent({
   model: 'openai/gpt-4o-mini',
   tools: bloodBankLiaisonAgentTools,
   memory: sharedMemory,
+  maxSteps: 20,
 });
 
 // ---------------------------------------------------------------------------
@@ -63,6 +67,7 @@ const eligibilityTimingAgent = new Agent({
   model: 'openai/gpt-4o-mini',
   tools: eligibilityTimingAgentTools,
   memory: sharedMemory,
+  maxSteps: 20,
 });
 
 // ---------------------------------------------------------------------------
@@ -75,6 +80,7 @@ const resultReportingAgent = new Agent({
   model: 'openai/gpt-4o-mini',
   tools: resultReportingAgentTools,
   memory: sharedMemory,
+  maxSteps: 20,
 });
 
 // ---------------------------------------------------------------------------
@@ -86,6 +92,7 @@ export const agent = new Agent({
   instructions: getCoordinatorAgentInstructions,
   model: 'openai/gpt-4o-mini',
   memory: sharedMemory,
+  maxSteps: 30,
   subAgents: [
     donorOutreachAgent,
     bloodBankLiaisonAgent,
