@@ -15,38 +15,14 @@ import {
   resultReportingAgentTools,
 } from './tools';
 
-/**
- * Creates the coordinator agent (and all sub-agents) using NestJS ConfigService.
- *
- * This is a factory function — called inside VoltAgentModule's useFactory —
- * so ConfigService has already loaded all env vars from .env before this runs.
- * This matches the pattern used in PrismaService and AuthModule.
- */
 export function createCoordinatorAgent(config: ConfigService): Agent {
-  const host = config.get<string>('DB_HOST');
-  const port = config.get<number>('DB_PORT') ?? 5432;
-  const user = config.get<string>('DB_USERNAME');
-  const password = config.get<string>('DB_PASSWORD');
-  const database = config.get<string>('DB_NAME');
-  const rejectUnauthorized =
-    config.get<string>('DB_SSL_REJECT_UNAUTHORIZED') === 'true';
-
-  if (!host || !user || !password || !database) {
-    throw new Error(
-      '[VoltAgent] Missing required PostgreSQL env variables: DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME',
-    );
-  }
+  const databaseUrl = config.get<string>('DATABASE_URL');
+  if (!databaseUrl)
+    throw new Error('[VoltAgent] Missing DATABASE_URL env variable');
 
   const sharedMemory = new Memory({
     storage: new PostgreSQLMemoryAdapter({
-      connection: {
-        host,
-        port: typeof port === 'string' ? parseInt(port, 10) : port,
-        user,
-        password,
-        database,
-        ssl: { rejectUnauthorized },
-      },
+      connection: databaseUrl,
       tablePrefix: 'sangroot_agent_memory',
     }),
   });
