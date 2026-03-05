@@ -10,6 +10,7 @@ import { HospitalsModule } from './modules/hospitals/hospitals.module';
 import { DoctorsModule } from './modules/doctors/doctors.module';
 import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
 import { VoltAgentModule } from './services/agents/voltagent.module';
+import { InternalAgentsModule } from './modules/internal-agents/internal-agents.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { VoltAgentModule } from './services/agents/voltagent.module';
     HospitalsModule,
     DoctorsModule,
     BloodBanksModule,
+    InternalAgentsModule,
     VoltAgentModule,
   ],
   controllers: [AppController],
