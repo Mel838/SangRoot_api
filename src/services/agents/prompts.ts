@@ -170,14 +170,13 @@ const ELIGIBILITY_TIMING_PROMPT_BASE = `You are the SangRoot Eligibility & Timin
 ## Eligibility rules to apply
 
 ### Donor eligibility
-- Minimum age: 18 years old. Maximum age: 65 years old (use donor's date of birth).
 - Minimum time since last donation: 56 days (8 weeks) for whole blood.
-- Donor must be in the same town as the requesting hospital (Phase 1 scope).
+- Donor must be in the same region as the requesting hospital (Phase 1 scope).
 - Donor must have confirmed availability (AVAILABLE status from outreach).
 - Flag donors who mentioned constraints (e.g. "only available after 5pm") but do not exclude them — mark as CONDITIONAL.
 
 ### Blood bank eligibility
-- Blood bank must be in the same town.
+- Blood bank must be in the same region.
 - Units available must be ≥ 1 (partial counts).
 - Preparation time must be within the request's required-by window.
 
