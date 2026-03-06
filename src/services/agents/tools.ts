@@ -20,7 +20,7 @@ function formatBloodGroup(bg: string): string {
 export const fetchMatchingDonors = createTool({
   name: 'fetch_matching_donors',
   description:
-    'Fetch registered donors that match the required blood group and are located in the same town as the requesting hospital. Returns donor IDs, first names, phone numbers, and date of birth (for eligibility checks). Always call this before sending any messages.',
+    'Fetch registered donors that match the required blood group and are located in the same region as the requesting hospital. Returns donor IDs, first names, phone numbers, and date of birth (for eligibility checks). Always call this before sending any messages.',
   parameters: z.object({
     bloodGroup: z
       .enum([
@@ -34,19 +34,14 @@ export const fetchMatchingDonors = createTool({
         'O_NEGATIVE',
       ])
       .describe('The required blood group'),
-    town: z
-      .string()
-      .describe(
-        'The town where the hospital is located (Phase 1: same-city only)',
-      ),
     region: z.string().describe('The Cameroon region (e.g. CENTRE, LITTORAL)'),
   }),
-  execute: async ({ bloodGroup, town, region }) => {
+  execute: async ({ bloodGroup, region }) => {
     const apiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3000';
     const apiKey = process.env.AGENT_API_KEY ?? '';
 
     const res = await fetch(
-      `${apiUrl}/internal/agents/donors?bloodGroup=${bloodGroup}&town=${encodeURIComponent(town)}&region=${region}`,
+      `${apiUrl}/internal/agents/donors?bloodGroup=${bloodGroup}&region=${region}`,
       { headers: { 'x-agent-key': apiKey } },
     );
 
@@ -59,7 +54,6 @@ export const fetchMatchingDonors = createTool({
       name: string;
       phone: string;
       dateBirth: string;
-      town: string;
       region: string;
     }[];
 
@@ -69,9 +63,6 @@ export const fetchMatchingDonors = createTool({
         id: d.id,
         firstName: d.name.split(' ')[0],
         phone: d.phone,
-        dateBirth: d.dateBirth,
-        town: d.town,
-        region: d.region,
       })),
       total: data.length,
     };
