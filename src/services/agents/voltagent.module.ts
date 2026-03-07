@@ -9,8 +9,10 @@ import { VoltAgent } from '@voltagent/core';
 import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
 import { createCoordinatorAgent } from './agents';
+import type { Agent } from '@voltagent/core';
 
 const VOLT_AGENT_TOKEN = 'VOLT_AGENT';
+export const COORDINATOR_AGENT_TOKEN = 'COORDINATOR_AGENT';
 
 /**
  * VoltAgentModule
@@ -27,8 +29,17 @@ const VOLT_AGENT_TOKEN = 'VOLT_AGENT';
 @Module({
   providers: [
     {
-      provide: VOLT_AGENT_TOKEN,
+      provide: COORDINATOR_AGENT_TOKEN,
       useFactory: (config: ConfigService) => {
+        // createCoordinatorAgent uses ConfigService to read DB credentials,
+        // so they are guaranteed to be available at this point.
+        return createCoordinatorAgent(config);
+      },
+      inject: [ConfigService],
+    },
+    {
+      provide: VOLT_AGENT_TOKEN,
+      useFactory: (coordinator: Agent, config: ConfigService) => {
         const logger = createPinoLogger({
           name: 'sangroot-agent',
           level: config.get('NODE_ENV') === 'production' ? 'warn' : 'info',
@@ -36,20 +47,16 @@ const VOLT_AGENT_TOKEN = 'VOLT_AGENT';
 
         const port = config.get<number>('VOLT_PORT') ?? 3141;
 
-        // createCoordinatorAgent uses ConfigService to read DB credentials,
-        // so they are guaranteed to be available at this point.
-        const coordinator = createCoordinatorAgent(config);
-
         return new VoltAgent({
           agents: { coordinator },
           server: honoServer({ port }),
           logger,
         });
       },
-      inject: [ConfigService],
+      inject: [COORDINATOR_AGENT_TOKEN, ConfigService],
     },
   ],
-  exports: [VOLT_AGENT_TOKEN],
+  exports: [VOLT_AGENT_TOKEN, COORDINATOR_AGENT_TOKEN],
 })
 export class VoltAgentModule
   implements OnApplicationBootstrap, OnModuleDestroy
