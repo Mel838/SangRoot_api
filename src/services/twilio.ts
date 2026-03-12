@@ -1,4 +1,5 @@
 import twilio, { Twilio } from 'twilio';
+import { sendWhatsAppMessage as sendWhatsAppViaKapso } from './kapso';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -95,35 +96,16 @@ export interface MessageResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Send a WhatsApp message via Twilio to a donor, blood bank, or doctor.
+ * Send a WhatsApp message via Kapso (formerly Twilio).
  *
- * The `to` number should be in E.164 format (e.g. +237612345678).
- * The "whatsapp:" prefix is added automatically if not already present.
+ * [MIGRATION NOTE]: This now uses Kapso under the hood to fulfill the requirement
+ * of switching WhatsApp provider while maintaining the same interface for existing code.
  */
 export async function sendWhatsAppMessage(
   options: SendWhatsAppOptions,
 ): Promise<MessageResult> {
-  const config = getTwilioConfig();
-  const client = getTwilioClient();
-
-  const to = options.to.startsWith('whatsapp:')
-    ? options.to
-    : `whatsapp:${options.to}`;
-
-  const params: Parameters<Twilio['messages']['create']>[0] = {
-    from: config.whatsappFrom,
-    to,
-    body: options.body,
-  };
-
-  if (options.mediaUrl) {
-    params.mediaUrl = Array.isArray(options.mediaUrl)
-      ? options.mediaUrl
-      : [options.mediaUrl];
-  }
-
-  const message = await client.messages.create(params);
-  return { sid: message.sid, status: message.status, channel: 'whatsapp' };
+  const result = await sendWhatsAppViaKapso(options);
+  return { sid: result.sid, status: result.status, channel: 'whatsapp' };
 }
 
 // ---------------------------------------------------------------------------

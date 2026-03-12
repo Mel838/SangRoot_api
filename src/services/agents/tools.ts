@@ -1,6 +1,7 @@
 import { createTool } from '@voltagent/core';
 import { z } from 'zod';
-import { sendWhatsAppMessage } from '../twilio';
+// import { sendWhatsAppMessage } from '../twilio'; // [Deprecating Twilio for WhatsApp]
+import { sendWhatsAppMessage } from '../kapso';
 
 // ---------------------------------------------------------------------------
 // Helper: Format blood group for human-readable messages
