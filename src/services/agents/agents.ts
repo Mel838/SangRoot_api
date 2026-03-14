@@ -13,6 +13,7 @@ import {
   bloodBankLiaisonAgentTools,
   eligibilityTimingAgentTools,
   resultReportingAgentTools,
+  coordinatorAgentTools,
 } from './tools';
 
 export function createCoordinatorAgent(config: ConfigService): Agent {
@@ -84,6 +85,7 @@ export function createCoordinatorAgent(config: ConfigService): Agent {
     model: 'openai/gpt-4o-mini',
     memory: sharedMemory,
     maxSteps: 10,
+    tools: coordinatorAgentTools,
     subAgents: [
       donorOutreachAgent,
       bloodBankLiaisonAgent,

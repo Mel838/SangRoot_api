@@ -434,3 +434,6 @@ export const resultReportingAgentTools = [
   persistFinalReport,
   sendDoctorProgressUpdate,
 ];
+
+// Progress report to doctor
+export const coordinatorAgentTools = [sendDoctorProgressUpdate];
