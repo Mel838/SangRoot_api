@@ -5,7 +5,10 @@ import { RegisterDonorDto } from '../hospitals/dto/register-donor.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser, CurrentUser as CurrentUserType } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUser as CurrentUserType,
+} from '../auth/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
 @Controller('doctors')

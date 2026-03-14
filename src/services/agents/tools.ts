@@ -1,7 +1,75 @@
 import { createTool } from '@voltagent/core';
 import { z } from 'zod';
-// import { sendWhatsAppMessage } from '../twilio'; // [Deprecating Twilio for WhatsApp]
-import { sendWhatsAppMessage } from '../kapso';
+// import { sendWhatsAppMessage } from '../kapso';
+import { Logger } from '@nestjs/common';
+
+const logger = new Logger('WhatsAppTools');
+
+interface WhatsAppResponse {
+  messaging_product: string;
+  contacts: Array<{
+    input: string;
+    wa_id: string;
+  }>;
+  messages: Array<{
+    id: string;
+  }>;
+  error?: {
+    message: string;
+    type: string;
+    code: number;
+    fbtrace_id: string;
+  };
+}
+
+/**
+ * Send a WhatsApp message via WhatsApp Cloud API.
+ */
+async function sendWhatsAppMessage(options: { to: string; body: string }) {
+  const apiToken = process.env.WHATSAPP_CLOUD_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+
+  if (!apiToken || !phoneNumberId) {
+    throw new Error('WhatsApp Cloud API not configured (missing env vars)');
+  }
+
+  const to = options.to.replace('whatsapp:', '').replace(/\+/g, '').trim();
+
+  const response = await fetch(
+    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: to,
+        type: 'text',
+        text: {
+          preview_url: false,
+          body: options.body,
+        },
+      }),
+    },
+  );
+
+  const data = (await response.json()) as WhatsAppResponse;
+
+  if (!response.ok) {
+    logger.error(`Error sending WhatsApp message: ${JSON.stringify(data)}`);
+    throw new Error(
+      `WhatsApp API error: ${data.error?.message || response.statusText}`,
+    );
+  }
+
+  return {
+    sid: data.messages?.[0]?.id || 'unknown',
+    status: 'sent',
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Helper: Format blood group for human-readable messages
@@ -50,13 +118,13 @@ export const fetchMatchingDonors = createTool({
       return { success: false, donors: [], error: `API error: ${res.status}` };
     }
 
-    const data = (await res.json()) as {
+    const data = (await res.json()) as Array<{
       id: string;
       name: string;
       phone: string;
       dateBirth: string;
       region: string;
-    }[];
+    }>;
 
     return {
       success: true,
@@ -64,6 +132,7 @@ export const fetchMatchingDonors = createTool({
         id: d.id,
         firstName: d.name.split(' ')[0],
         phone: d.phone,
+        name: d.name, // Added full name for doctor notification later
       })),
       total: data.length,
     };
@@ -89,7 +158,7 @@ export const sendDonorOutreachMessage = createTool({
         body: messageBody,
       });
       return { success: true, sid: result.sid, status: result.status };
-    } catch (err) {
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return { success: false, error: message };
     }
@@ -160,13 +229,13 @@ export const fetchNearbyBloodBanks = createTool({
       };
     }
 
-    const data = (await res.json()) as {
+    const data = (await res.json()) as Array<{
       id: string;
       name: string;
       phone: string;
       town: string;
       region: string;
-    }[];
+    }>;
 
     return { success: true, bloodBanks: data, total: data.length };
   },
@@ -230,7 +299,7 @@ export const sendBloodBankNotification = createTool({
         status: result.status,
         bloodBankName,
       };
-    } catch (err) {
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return { success: false, error: message, bloodBankName };
     }
@@ -403,7 +472,7 @@ export const sendDoctorProgressUpdate = createTool({
         body: messageBody,
       });
       return { success: true, sid: result.sid, status: result.status };
-    } catch (err) {
+    } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return { success: false, error: message };
     }
