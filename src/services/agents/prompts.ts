@@ -16,6 +16,7 @@ export interface BloodRequestContext {
   patientAge?: number;
   patientGender?: string;
   medicalReason?: string;
+  doctorPhone: string;
 }
 
 function formatBloodGroup(bg: string): string {
@@ -41,6 +42,7 @@ function getRequestBlock(context: Map<string | symbol, unknown>): string {
 - Units needed : ${req.unitsRequired}
 - Urgency      : ${urgencyLabel(req.urgency)}
 - Hospital     : ${req.hospitalName}, ${req.town}, ${req.region}
+- Doctor phone : ${req.doctorPhone}
 - Required by  : ${new Date(req.requiredBy).toLocaleString('fr-CM')}
 ${req.medicalReason ? `- Medical note : ${req.medicalReason}` : ''}`;
 }

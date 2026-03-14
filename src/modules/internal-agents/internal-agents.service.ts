@@ -8,6 +8,7 @@ import { BloodGroup, CameroonRegion, DonorAvailability } from '@prisma/client';
 import { RecordDonorResponseDto } from './dto/record-donor-response.dto';
 import { RecordBloodBankResponseDto } from './dto/record-blood-bank-response.dto';
 import { FinalReportDto } from './dto/final-report.dto';
+import { sendWhatsAppMessage } from '../../services/kapso';
 
 @Injectable()
 export class InternalAgentsService {
@@ -89,6 +90,23 @@ export class InternalAgentsService {
       throw new NotFoundException(`Donor ${dto.donorId} not found`);
     }
 
+    const existing = await this.prisma.donorResponse.findUnique({
+      where: {
+        requestId_donorId: {
+          requestId: dto.requestId,
+          donorId: dto.donorId,
+        },
+      },
+      select: { availability: true },
+    });
+
+    const isNewPositive =
+      (dto.availability === DonorAvailability.AVAILABLE ||
+        dto.availability === DonorAvailability.CONDITIONAL) &&
+      (!existing ||
+        (existing.availability !== DonorAvailability.AVAILABLE &&
+          existing.availability !== DonorAvailability.CONDITIONAL));
+
     const response = await this.prisma.donorResponse.upsert({
       where: {
         requestId_donorId: {
@@ -107,6 +125,27 @@ export class InternalAgentsService {
         constraint: dto.constraint ?? null,
       },
     });
+
+    if (isNewPositive) {
+      const doctor = await this.prisma.doctor.findUnique({
+        where: { userId: request.requesterId },
+      });
+      if (doctor?.phone) {
+        const bgFormatted = request.bloodGroup
+          .replace('_POSITIVE', '+')
+          .replace('_NEGATIVE', '-')
+          .replace('_', '');
+        const message = `✅ ${bgFormatted} update for ${request.hospitalName}: A donor confirmed availability. (Outreach ongoing)`;
+        sendWhatsAppMessage({ to: doctor.phone, body: message }).catch(
+          (err) => {
+            console.error(
+              '[InternalAgents] Failed to send WhatsApp progress update',
+              err,
+            );
+          },
+        );
+      }
+    }
 
     return response;
   }
@@ -130,6 +169,18 @@ export class InternalAgentsService {
       throw new NotFoundException(`BloodBank ${dto.bloodBankId} not found`);
     }
 
+    const existing = await this.prisma.bloodBankResponse.findUnique({
+      where: {
+        requestId_bloodBankId: {
+          requestId: dto.requestId,
+          bloodBankId: dto.bloodBankId,
+        },
+      },
+      select: { available: true },
+    });
+
+    const isNewPositive = dto.available && !existing?.available;
+
     const response = await this.prisma.bloodBankResponse.upsert({
       where: {
         requestId_bloodBankId: {
@@ -152,6 +203,27 @@ export class InternalAgentsService {
         notes: dto.notes ?? null,
       },
     });
+
+    if (isNewPositive) {
+      const doctor = await this.prisma.doctor.findUnique({
+        where: { userId: request.requesterId },
+      });
+      if (doctor?.phone) {
+        const bgFormatted = request.bloodGroup
+          .replace('_POSITIVE', '+')
+          .replace('_NEGATIVE', '-')
+          .replace('_', '');
+        const message = `✅ ${bgFormatted} update for ${request.hospitalName}: ${bloodBank.name} confirmed availability of ${dto.unitsAvailable} unit(s).`;
+        sendWhatsAppMessage({ to: doctor.phone, body: message }).catch(
+          (err) => {
+            console.error(
+              '[InternalAgents] Failed to send WhatsApp progress update for blood bank',
+              err,
+            );
+          },
+        );
+      }
+    }
 
     return response;
   }

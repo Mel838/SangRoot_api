@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBloodRequestDto } from './dto/create-blood-request.dto';
 import type { Agent } from '@voltagent/core';
@@ -56,6 +56,7 @@ export class BloodRequestsService {
    */
   private async triggerAgent(request: {
     id: string;
+    requesterId: string;
     bloodGroup: string;
     unitsRequired: number;
     urgency: string;
@@ -73,6 +74,12 @@ export class BloodRequestsService {
       data: { status: 'IN_PROGRESS' },
     });
 
+    // Fetch the requesting doctor's phone number for progress notifications
+    const requester = await this.prisma.doctor.findUniqueOrThrow({
+      where: { userId: request.requesterId },
+      select: { phone: true },
+    });
+
     // Build the context the agent prompts read via getRequestBlock()
     const bloodRequestContext: BloodRequestContext = {
       requestId: request.id,
@@ -86,6 +93,7 @@ export class BloodRequestsService {
       patientAge: request.patientAge,
       patientGender: request.patientGender,
       medicalReason: request.medicalReason ?? undefined,
+      doctorPhone: requester.phone,
     };
 
     // The coordinator agent is injected directly via COORDINATOR_AGENT_TOKEN
@@ -113,5 +121,57 @@ export class BloodRequestsService {
     });
 
     this.logger.log(`Coordinator finished processing request ${request.id}`);
+  }
+
+  /**
+   * Retrieves real-time progress count of positive responses for a blood request.
+   */
+  async getProgress(userId: string, requestId: string) {
+    const request = await this.prisma.bloodRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        donorResponses: {
+          include: { donor: true },
+        },
+        bloodBankResponses: {
+          include: { bloodBank: true },
+        },
+      },
+    });
+
+    // Check if the request exists and belongs to the user
+    if (!request || request.requesterId !== userId) {
+      // NOTE: In a full access control model, Hospitals might be able to view requests of their Doctors too.
+      // We assume strict requester control here for now.
+      throw new NotFoundException(`Blood request not found`);
+    }
+
+    const eligibleDonors = request.donorResponses.filter(
+      (dr) => dr.availability === 'AVAILABLE',
+    ).length;
+
+    const conditionalDonors = request.donorResponses.filter(
+      (dr) => dr.availability === 'CONDITIONAL',
+    ).length;
+
+    const bloodBankSummary = request.bloodBankResponses
+      .filter((bbr) => bbr.available)
+      .map((bbr) => ({
+        name: bbr.bloodBank.name,
+        unitsAvailable: bbr.unitsAvailable,
+      }));
+
+    const totalUnitsFromBanks = bloodBankSummary.reduce(
+      (sum, b) => sum + b.unitsAvailable,
+      0,
+    );
+
+    return {
+      status: request.status,
+      eligibleDonors,
+      conditionalDonors,
+      totalUnitsFromBanks,
+      bloodBanks: bloodBankSummary,
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param } from '@nestjs/common';
 import { BloodRequestsService } from './blood-requests.service';
 import { CreateBloodRequestDto } from './dto/create-blood-request.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -27,5 +27,18 @@ export class BloodRequestsController {
     @Body() dto: CreateBloodRequestDto,
   ) {
     return this.bloodRequestsService.create(user.userId, dto);
+  }
+
+  /**
+   * GET /blood-requests/:id/progress
+   * Retrieves the real-time AI progress (donor & blood bank positive responses)
+   */
+  @Get(':id/progress')
+  @Roles(UserRole.DOCTOR, UserRole.HOSPITAL)
+  async getProgress(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id') id: string,
+  ) {
+    return this.bloodRequestsService.getProgress(user.userId, id);
   }
 }
