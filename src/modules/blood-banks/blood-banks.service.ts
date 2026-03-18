@@ -4,12 +4,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DonorsService } from '../donors/donors.service';
 import { UpdateBloodBankProfileDto } from './dto/update-blood-bank-profile.dto';
-import { RegisterDonorDto } from '../hospitals/dto/register-donor.dto';
+import { RegisterDonorDto } from '../donors/dto/register-donor.dto';
 
 @Injectable()
 export class BloodBanksService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private donorsService: DonorsService, // ← injected
+  ) {}
 
   async getProfile(userId: string) {
     const bloodBank = await this.prisma.bloodBank.findUnique({
@@ -55,16 +59,16 @@ export class BloodBanksService {
       }
     }
 
-    const updated = await this.prisma.bloodBank.update({
+    return this.prisma.bloodBank.update({
       where: { userId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.region !== undefined && { region: dto.region }), // ← replaces state
-        ...(dto.town !== undefined && { town: dto.town }), // ← replaces city
+        ...(dto.region !== undefined && { region: dto.region }),
+        ...(dto.town !== undefined && { town: dto.town }),
         ...(dto.neighbourhood !== undefined && {
           neighbourhood: dto.neighbourhood,
-        }), // ← replaces pincode
+        }),
         ...(dto.address !== undefined && { address: dto.address }),
         ...(dto.latitude !== undefined && { latitude: dto.latitude }),
         ...(dto.longitude !== undefined && { longitude: dto.longitude }),
@@ -87,11 +91,10 @@ export class BloodBanksService {
         updatedAt: true,
       },
     });
-
-    return updated;
   }
 
   async registerDonor(bloodBankUserId: string, dto: RegisterDonorDto) {
+    // 1. Resolve the blood bank entity
     const bloodBankUser = await this.prisma.user.findUnique({
       where: { id: bloodBankUserId },
       include: { bloodBank: true },
@@ -100,36 +103,14 @@ export class BloodBanksService {
     if (!bloodBankUser) {
       throw new NotFoundException('Blood bank user not found');
     }
-
     if (!bloodBankUser.bloodBank) {
       throw new NotFoundException('Blood bank profile not found');
     }
 
-    const existingDonor = await this.prisma.donor.findUnique({
-      where: { phone: dto.phone },
+    // 2. Delegate — phone check + create both happen inside DonorsService.
+    //    ConflictException is thrown automatically if phone is taken.
+    return this.donorsService.registerDonor(dto, {
+      bloodBankId: bloodBankUser.bloodBank.id,
     });
-
-    if (existingDonor) {
-      throw new BadRequestException(
-        'Donor with this phone number already registered',
-      );
-    }
-
-    const donor = await this.prisma.donor.create({
-      data: {
-        name: dto.name,
-        phone: dto.phone,
-        email: dto.email,
-        dateBirth: new Date(dto.dateBirth),
-        bloodGroup: dto.bloodGroup,
-        region: dto.region,
-        town: dto.town,
-        neighbourhood: dto.neighbourhood,
-        genre: dto.genre,
-        bloodBankId: bloodBankUser.bloodBank.id,
-      },
-    });
-
-    return donor;
   }
 }
