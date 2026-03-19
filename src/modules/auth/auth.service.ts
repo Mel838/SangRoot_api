@@ -6,14 +6,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole, InviteStatus, RefreshToken, User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { randomUUID } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 
@@ -21,10 +24,17 @@ type RefreshTokenWithUser = RefreshToken & { user: User };
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.googleClient = new OAuth2Client(
+      this.configService.get<string>('GOOGLE_CLIENT_ID'),
+    );
+  }
 
   private REFRESH_TOKEN_DAYS = 30;
 
@@ -208,6 +218,12 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Invalid credentials');
     if (!user.isActive) throw new UnauthorizedException('Account is inactive');
 
+    if (!user.passwordHash) {
+      throw new UnauthorizedException(
+        'This account uses Google sign-in. Please use the Google button to log in.',
+      );
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid)
       throw new UnauthorizedException('Invalid credentials');
@@ -298,6 +314,127 @@ export class AuthService {
     };
     const accessToken = this.jwtService.sign(payload);
 
+    return {
+      accessToken,
+      user: { id: result.id, email: result.email, role: result.role },
+    };
+  }
+
+  async googleAuth(googleAuthDto: GoogleAuthDto): Promise<AuthResponseDto> {
+    const { idToken, role } = googleAuthDto;
+
+    // 1. Verify the Google ID token
+    let payload;
+    try {
+      const ticket = await this.googleClient.verifyIdToken({
+        idToken,
+        audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+      });
+      payload = ticket.getPayload();
+    } catch {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    if (!payload || !payload.email) {
+      throw new UnauthorizedException('Google token missing email');
+    }
+
+    const { email, sub: googleId } = payload;
+
+    // 2. Check if user already exists by googleId
+    let user = await this.prisma.user.findUnique({ where: { googleId } });
+
+    if (user) {
+      // Existing Google user — just log in
+      if (!user.isActive) {
+        throw new UnauthorizedException('Account is inactive');
+      }
+
+      const accessToken = this.createAccessTokenForUser(user);
+      return {
+        accessToken,
+        user: { id: user.id, email: user.email, role: user.role },
+      };
+    }
+
+    // 3. Check if user exists by email (account linking)
+    user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      // Link Google account to existing email user
+      if (!user.isActive) {
+        throw new UnauthorizedException('Account is inactive');
+      }
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { googleId, authProvider: 'google' },
+      });
+
+      const accessToken = this.createAccessTokenForUser(user);
+      return {
+        accessToken,
+        user: { id: user.id, email: user.email, role: user.role },
+      };
+    }
+
+    // 4. New user — register
+    if (!role) {
+      throw new BadRequestException(
+        'Role is required for first-time Google registration',
+      );
+    }
+
+    if (role !== UserRole.HOSPITAL && role !== UserRole.BLOOD_BANK) {
+      throw new BadRequestException(
+        'Role must be either HOSPITAL or BLOOD_BANK',
+      );
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email,
+          passwordHash: null,
+          role,
+          isActive: true,
+          googleId,
+          authProvider: 'google',
+        },
+      });
+
+      if (role === UserRole.HOSPITAL) {
+        await tx.hospital.create({
+          data: {
+            userId: newUser.id,
+            name: '',
+            phone: '',
+            region: 'CENTRE',
+            town: '',
+            neighbourhood: '',
+            address: '',
+            licenseNumber: '',
+          },
+        });
+      } else if (role === UserRole.BLOOD_BANK) {
+        await tx.bloodBank.create({
+          data: {
+            userId: newUser.id,
+            name: '',
+            phone: '',
+            region: 'CENTRE',
+            town: '',
+            neighbourhood: '',
+            address: '',
+            licenseNumber: '',
+          },
+        });
+      }
+
+      return newUser;
+    });
+
+    const accessToken = this.createAccessTokenForUser(result);
     return {
       accessToken,
       user: { id: result.id, email: result.email, role: result.role },
