@@ -12,6 +12,7 @@ import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
 import { VoltAgentModule } from './services/agents/voltagent.module';
 import { InternalAgentsModule } from './modules/internal-agents/internal-agents.module';
 import { BloodRequestsModule } from './modules/blood-requests/blood-requests.module';
+import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { DonorModule } from './modules/donors/donors.module';
 
 @Module({
@@ -28,6 +29,7 @@ import { DonorModule } from './modules/donors/donors.module';
     InternalAgentsModule,
     BloodRequestsModule,
     VoltAgentModule,
+    WhatsappModule,
     DonorModule,
   ],
   controllers: [AppController],

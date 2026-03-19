@@ -8,7 +8,50 @@ import { BloodGroup, CameroonRegion, DonorAvailability } from '@prisma/client';
 import { RecordDonorResponseDto } from './dto/record-donor-response.dto';
 import { RecordBloodBankResponseDto } from './dto/record-blood-bank-response.dto';
 import { FinalReportDto } from './dto/final-report.dto';
-import { sendWhatsAppMessage } from '../../services/kapso';
+// import { sendWhatsAppMessage } from '../../services/kapso';
+
+/**
+ * Send a WhatsApp message via WhatsApp Cloud API (Helper for service)
+ */
+async function sendWhatsAppMessageHelper(options: {
+  to: string;
+  body: string;
+}) {
+  const apiToken = process.env.WHATSAPP_CLOUD_API_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+
+  if (!apiToken || !phoneNumberId) {
+    console.error('WhatsApp Cloud API not configured');
+    return;
+  }
+
+  const to = options.to.replace('whatsapp:', '').replace(/\+/g, '').trim();
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: to,
+          type: 'text',
+          text: { body: options.body },
+        }),
+      },
+    );
+    if (!response.ok) {
+      console.error('WhatsApp API error', await response.json());
+    }
+  } catch (err) {
+    console.error('Failed to send WhatsApp message', err);
+  }
+}
 
 @Injectable()
 export class InternalAgentsService {
@@ -135,8 +178,8 @@ export class InternalAgentsService {
           .replace('_POSITIVE', '+')
           .replace('_NEGATIVE', '-')
           .replace('_', '');
-        const message = `✅ ${bgFormatted} update for ${request.hospitalName}: A donor confirmed availability. (Outreach ongoing)`;
-        sendWhatsAppMessage({ to: doctor.phone, body: message }).catch(
+        const message = `✅ ${bgFormatted} update for ${request.hospitalName}: Donor ${donor.name} (${donor.phone}) confirmed availability. (Outreach ongoing)`;
+        sendWhatsAppMessageHelper({ to: doctor.phone, body: message }).catch(
           (err) => {
             console.error(
               '[InternalAgents] Failed to send WhatsApp progress update',
@@ -213,8 +256,8 @@ export class InternalAgentsService {
           .replace('_POSITIVE', '+')
           .replace('_NEGATIVE', '-')
           .replace('_', '');
-        const message = `✅ ${bgFormatted} update for ${request.hospitalName}: ${bloodBank.name} confirmed availability of ${dto.unitsAvailable} unit(s).`;
-        sendWhatsAppMessage({ to: doctor.phone, body: message }).catch(
+        const message = `✅ ${bgFormatted} update for ${request.hospitalName}: ${bloodBank.name} (${bloodBank.phone}) confirmed availability of ${dto.unitsAvailable} unit(s).`;
+        sendWhatsAppMessageHelper({ to: doctor.phone, body: message }).catch(
           (err) => {
             console.error(
               '[InternalAgents] Failed to send WhatsApp progress update for blood bank',
