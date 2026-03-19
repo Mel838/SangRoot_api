@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 import { AuthResponseDto } from './dto/auth-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import {
@@ -78,6 +79,24 @@ export class AuthController {
     return result;
   }
 
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async google(
+    @Body() googleAuthDto: GoogleAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponseDto> {
+    const result = await this.authService.googleAuth(googleAuthDto);
+    const { cookieValue, maxAge } =
+      await this.authService.createAndStoreRefreshToken(result.user.id);
+    res.cookie('refreshToken', cookieValue, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge,
+    });
+    return result;
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -86,16 +105,20 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
     @CurrentUser() user: CurrentUserType,
   ): Promise<void> {
-    const cookies = (
-      req as unknown as { cookies?: Record<string, string | undefined> }
-    ).cookies;
-    const cookie =
-      cookies?.refreshToken || (req.headers.cookie as string) || '';
-    // If cookie-parser is used, req.cookies.refreshToken will be present.
-    const raw =
-      typeof cookie === 'string' && cookie.includes('refreshToken=')
-        ? cookie.split('refreshToken=')[1].split(';')[0]
-        : cookies?.refreshToken;
+    // Cast through unknown to bypass strict 'any' checks
+    const reqWithCookies = req as unknown as {
+      cookies?: Record<string, string | undefined>;
+      headers: { cookie?: string };
+    };
+    const cookies = reqWithCookies.cookies;
+    const cookieHeader = reqWithCookies.headers.cookie;
+
+    // Attempt to find refresh token in cookies or header
+    let raw: string | undefined = cookies?.refreshToken;
+    if (!raw && cookieHeader?.includes('refreshToken=')) {
+      raw = cookieHeader.split('refreshToken=')[1].split(';')[0];
+    }
+
     if (raw) {
       await this.authService.revokeRefreshToken(raw);
     } else {
@@ -113,17 +136,21 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<AuthResponseDto> {
-    const cookies = (
-      req as unknown as { cookies?: Record<string, string | undefined> }
-    ).cookies;
-    const body = req.body as { refreshToken?: string } | undefined;
-    const raw =
-      cookies?.refreshToken ||
-      body?.refreshToken ||
-      (typeof req.headers.cookie === 'string' &&
-      req.headers.cookie.includes('refreshToken=')
-        ? req.headers.cookie.split('refreshToken=')[1].split(';')[0]
-        : undefined);
+    const reqWithData = req as unknown as {
+      cookies?: Record<string, string | undefined>;
+      body?: { refreshToken?: string };
+      headers: { cookie?: string };
+    };
+
+    const cookies = reqWithData.cookies;
+    const body = reqWithData.body;
+    const cookieHeader = reqWithData.headers.cookie;
+
+    let raw: string | undefined = cookies?.refreshToken || body?.refreshToken;
+    if (!raw && cookieHeader?.includes('refreshToken=')) {
+      raw = cookieHeader.split('refreshToken=')[1].split(';')[0];
+    }
+
     if (!raw) {
       throw new Error('Refresh token not provided');
     }
@@ -149,6 +176,6 @@ export class AuthController {
         email: rotated.user.email,
         role: rotated.user.role,
       },
-    } as AuthResponseDto;
+    };
   }
 }
