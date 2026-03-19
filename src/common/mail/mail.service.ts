@@ -60,35 +60,94 @@ export class MailService implements OnModuleInit {
       to,
       subject: `You've been invited to join ${hospitalName} on SangRoot`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #c0392b;">SangRoot — Doctor Invitation</h2>
-          <p>Hello,</p>
-          <p>
-            You have been invited to join <strong>${hospitalName}</strong> as a doctor
-            on the <strong>SangRoot</strong> platform.
-          </p>
-          <p>Use the invite code below when creating your account:</p>
-          <div style="
-            background: #f4f4f4;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 16px 24px;
-            margin: 20px 0;
-            text-align: center;
-          ">
-            <span style="font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #c0392b;">
-              ${inviteId}
-            </span>
-          </div>
-          <p>
-            Open the SangRoot app, tap <em>Accept Invite</em>, and enter the code above
-            along with your email address <strong>(${to})</strong> to complete registration.
-          </p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-          <p style="font-size: 12px; color: #999;">
-            If you were not expecting this invitation, you can safely ignore this email.
-          </p>
-        </div>
+      <div style="background:#F5F7FA;padding:30px 0;font-family:Arial,Helvetica,sans-serif;">
+        
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td align="center">
+
+              <table width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border-radius:8px;overflow:hidden;">
+
+                <!-- Header -->
+                <tr>
+                  <td style="background:#1F4E79;padding:24px;text-align:center;color:#FFFFFF;">
+                    <h2 style="margin:0;font-size:22px;">SangRoot</h2>
+                    <p style="margin:4px 0 0;font-size:13px;opacity:0.9;">
+                      Connecting Blood Donors, Hospitals & Doctors
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding:30px;color:#333333;font-size:15px;line-height:1.6;">
+
+                    <p style="margin-top:0;">Hello,</p>
+
+                    <p>
+                      You have been invited to join 
+                      <strong>${hospitalName}</strong> as a doctor on the 
+                      <strong>SangRoot</strong> platform.
+                    </p>
+
+                    <p>
+                      SangRoot helps hospitals and doctors quickly locate blood donors
+                      and manage blood availability during emergencies.
+                    </p>
+
+                    <p><strong>Your invitation code:</strong></p>
+
+                    <!-- Invite Code -->
+                    <div style="
+                      background:#F5F7FA;
+                      border:1px solid #E3E6EA;
+                      border-radius:8px;
+                      padding:14px 16px;
+                      margin:20px 0;
+                      text-align:center;
+                    ">
+                      <span style="
+                        font-size:12px;
+                        font-weight:bold;
+                        letter-spacing:2px;
+                      ">
+                        ${inviteId}
+                      </span>
+                    </div>
+
+                    <p>
+                      Open the <strong>SangRoot</strong> app, tap 
+                      <em>Accept Invite</em>, and enter the code above along with your
+                      email address: <span style="font-weight:bold;color:#1F4E79;"> ${to} </span>
+                    </p>
+                    <p>
+                      Once completed, you'll be connected with your hospital
+                      and ready to support life-saving blood coordination.
+                    </p>
+
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background:#F5F7FA;padding:20px;text-align:center;font-size:12px;color:#666;">
+                    <p style="margin:0;">
+                      If you were not expecting this invitation, you can safely ignore this email.
+                    </p>
+
+                    <p style="margin:8px 0 0;color:#999;">
+                      © ${new Date().getFullYear()} SangRoot
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+
+            </td>
+          </tr>
+        </table>
+
+      </div>
       `,
     };
 

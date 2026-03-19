@@ -12,6 +12,7 @@ import { BloodBanksModule } from './modules/blood-banks/blood-banks.module';
 import { VoltAgentModule } from './services/agents/voltagent.module';
 import { InternalAgentsModule } from './modules/internal-agents/internal-agents.module';
 import { BloodRequestsModule } from './modules/blood-requests/blood-requests.module';
+import { DonorModule } from './modules/donors/donors.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { BloodRequestsModule } from './modules/blood-requests/blood-requests.mod
     InternalAgentsModule,
     BloodRequestsModule,
     VoltAgentModule,
+    DonorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

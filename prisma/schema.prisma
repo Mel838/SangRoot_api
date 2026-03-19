@@ -115,7 +115,7 @@ model Hospital {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name  String
-  phone String
+  phone String @unique
 
   // Location — Cameroon administrative structure
   region         CameroonRegion
@@ -149,7 +149,7 @@ model BloodBank {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name  String
-  phone String
+  phone String  @unique
 
   // Location — Cameroon administrative structure
   region         CameroonRegion
@@ -185,11 +185,12 @@ model Doctor {
   hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
 
   name           String
-  phone          String
+  phone          String  @unique
   specialization String? // e.g., "Cardiology", "Surgery"
   registrationNo String  @unique // Medical council registration
 
   hospitalInvite HospitalInvite?
+  registeredDonors Donor[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -246,11 +247,13 @@ model Donor {
   hospital    Hospital?  @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
   bloodBankId String?
   bloodBank   BloodBank? @relation(fields: [bloodBankId], references: [id], onDelete: SetNull)
+  doctorId    String? 
+  doctor      Doctor?    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   // Personal Information (NEVER shown in UI)
   name           String
   phone          String  @unique // Primary contact — WhatsApp preferred
-  email          String?
+  email          String? 
   dateBirth      DateTime 
   bloodGroup     BloodGroup
   region         CameroonRegion
