@@ -6,14 +6,18 @@ import {
   IsEnum,
   IsDateString,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { BloodGroup, Gender, CameroonRegion } from '@prisma/client';
 
 export class RegisterDonorDto {
   @IsString()
   name: string;
 
-  @IsEmail()
   @IsOptional()
+  @IsEmail()
+  @Transform(({ value }: { value: unknown }) =>
+    value === '' ? undefined : value,
+  )
   email?: string;
 
   @IsPhoneNumber()

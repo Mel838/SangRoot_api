@@ -13,6 +13,7 @@ import { VoltAgentModule } from './services/agents/voltagent.module';
 import { InternalAgentsModule } from './modules/internal-agents/internal-agents.module';
 import { BloodRequestsModule } from './modules/blood-requests/blood-requests.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
+import { DonorModule } from './modules/donors/donors.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
     BloodRequestsModule,
     VoltAgentModule,
     WhatsappModule,
+    DonorModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Body, UseGuards } from '@nestjs/common';
 import { HospitalsService } from './hospitals.service';
 import { InviteDoctorDto } from './dto/invite-doctor.dto';
 import { UpdateHospitalProfileDto } from './dto/update-hospital-profile.dto';
-import { RegisterDonorDto } from './dto/register-donor.dto';
+import { RegisterDonorDto } from '../donors/dto/register-donor.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';

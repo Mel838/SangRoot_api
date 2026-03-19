@@ -4,12 +4,16 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DonorsService } from '../donors/donors.service';
 import { UpdateDoctorProfileDto } from './dto/update-doctor-profile.dto';
-import { RegisterDonorDto } from '../hospitals/dto/register-donor.dto';
+import { RegisterDonorDto } from '../donors/dto/register-donor.dto';
 
 @Injectable()
 export class DoctorsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private donorsService: DonorsService, // ← injected
+  ) {}
 
   async getProfile(userId: string) {
     const doctor = await this.prisma.doctor.findUnique({
@@ -22,33 +26,22 @@ export class DoctorsService {
         registrationNo: true,
         hospitalId: true,
         hospital: {
-          select: {
-            id: true,
-            name: true,
-            region: true,
-            town: true,
-          },
+          select: { id: true, name: true, region: true, town: true },
         },
         createdAt: true,
         updatedAt: true,
       },
     });
 
-    if (!doctor) {
-      throw new NotFoundException('Doctor profile not found');
-    }
+    if (!doctor) throw new NotFoundException('Doctor profile not found');
 
     return doctor;
   }
 
   async updateProfile(userId: string, dto: UpdateDoctorProfileDto) {
-    const doctor = await this.prisma.doctor.findUnique({
-      where: { userId },
-    });
+    const doctor = await this.prisma.doctor.findUnique({ where: { userId } });
 
-    if (!doctor) {
-      throw new NotFoundException('Doctor profile not found');
-    }
+    if (!doctor) throw new NotFoundException('Doctor profile not found');
 
     if (dto.registrationNo && dto.registrationNo !== doctor.registrationNo) {
       const existing = await this.prisma.doctor.findFirst({
@@ -59,7 +52,7 @@ export class DoctorsService {
       }
     }
 
-    const updated = await this.prisma.doctor.update({
+    return this.prisma.doctor.update({
       where: { userId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -79,60 +72,31 @@ export class DoctorsService {
         registrationNo: true,
         hospitalId: true,
         hospital: {
-          select: {
-            id: true,
-            name: true,
-            region: true,
-            town: true,
-          },
+          select: { id: true, name: true, region: true, town: true },
         },
         createdAt: true,
         updatedAt: true,
       },
     });
-
-    return updated;
   }
 
   async registerDonor(userId: string, dto: RegisterDonorDto) {
+    // 1. Resolve the doctor entity
     const doctor = await this.prisma.doctor.findUnique({
       where: { userId },
       include: { hospital: true },
     });
 
-    if (!doctor) {
-      throw new NotFoundException('Doctor profile not found');
-    }
-
+    if (!doctor) throw new NotFoundException('Doctor profile not found');
     if (!doctor.hospitalId) {
       throw new BadRequestException('Doctor is not associated with a hospital');
     }
 
-    const existingDonor = await this.prisma.donor.findUnique({
-      where: { phone: dto.phone },
+    // 2. Delegate — phone check + create both happen inside DonorsService.
+    //    ConflictException is thrown automatically if phone is taken.
+    //    Doctors register donors under their hospital's ID.
+    return this.donorsService.registerDonor(dto, {
+      hospitalId: doctor.hospitalId,
     });
-
-    if (existingDonor) {
-      throw new BadRequestException(
-        'Donor with this phone number already registered',
-      );
-    }
-
-    const donor = await this.prisma.donor.create({
-      data: {
-        name: dto.name,
-        phone: dto.phone,
-        email: dto.email,
-        dateBirth: new Date(dto.dateBirth),
-        bloodGroup: dto.bloodGroup,
-        region: dto.region,
-        town: dto.town,
-        neighbourhood: dto.neighbourhood,
-        genre: dto.genre,
-        hospitalId: doctor.hospitalId,
-      },
-    });
-
-    return donor;
   }
 }

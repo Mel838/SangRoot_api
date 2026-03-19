@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Patch, Body, UseGuards } from '@nestjs/common';
 import { BloodBanksService } from './blood-banks.service';
 import { UpdateBloodBankProfileDto } from './dto/update-blood-bank-profile.dto';
-import { RegisterDonorDto } from '../hospitals/dto/register-donor.dto';
+import { RegisterDonorDto } from '../donors/dto/register-donor.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
