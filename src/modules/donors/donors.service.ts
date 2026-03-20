@@ -5,6 +5,7 @@ import { RegisterDonorDto } from './dto/register-donor.dto';
 interface RegisteredBy {
   bloodBankId?: string;
   hospitalId?: string;
+  doctorId?: string;
 }
 
 @Injectable()
@@ -85,6 +86,7 @@ export class DonorsService {
           bloodBankId: registeredBy.bloodBankId,
         }),
         ...(registeredBy.hospitalId && { hospitalId: registeredBy.hospitalId }),
+        ...(registeredBy.doctorId && { doctorId: registeredBy.doctorId }),
       },
     });
   }

@@ -117,7 +117,7 @@ model Hospital {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name  String
-  phone String @unique
+  phone String
 
   // Location — Cameroon administrative structure
   region        CameroonRegion
@@ -151,7 +151,7 @@ model BloodBank {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name  String
-  phone String  @unique
+  phone String
 
   // Location — Cameroon administrative structure
   region        CameroonRegion
@@ -187,11 +187,11 @@ model Doctor {
   hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
 
   name           String
-  phone          String  @unique
+  phone          String
   specialization String? // e.g., "Cardiology", "Surgery"
   registrationNo String  @unique // Medical council registration
 
-  hospitalInvite HospitalInvite?
+  hospitalInvite   HospitalInvite?
   registeredDonors Donor[]
 
   createdAt DateTime @default(now())
@@ -249,19 +249,19 @@ model Donor {
   hospital    Hospital?  @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
   bloodBankId String?
   bloodBank   BloodBank? @relation(fields: [bloodBankId], references: [id], onDelete: SetNull)
-  doctorId    String? 
+  doctorId    String?
   doctor      Doctor?    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   // Personal Information (NEVER shown in UI)
-  name           String
-  phone          String  @unique // Primary contact — WhatsApp preferred
-  email          String? 
-  dateBirth      DateTime 
-  bloodGroup     BloodGroup
-  region         CameroonRegion
-  town           String     
-  neighbourhood  String?     
-  genre          Gender
+  name          String
+  phone         String         @unique // Primary contact — WhatsApp preferred
+  email         String?
+  dateBirth     DateTime
+  bloodGroup    BloodGroup
+  region        CameroonRegion
+  town          String
+  neighbourhood String?
+  genre         Gender
 
   // AI Agent outreach records
   donorResponses DonorResponse[]
