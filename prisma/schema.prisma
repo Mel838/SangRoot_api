@@ -67,6 +67,24 @@ enum DonorAvailability {
   NO_RESPONSE
 }
 
+enum DonorConversationState {
+  ONBOARDING // First conversation in progress
+  IDLE // No active outreach
+  IN_OUTREACH // Currently being contacted for a blood request
+  OPTED_OUT // Donor requested removal — never contact again
+}
+
+enum BloodBankConversationState {
+  IDLE
+  IN_OUTREACH
+}
+
+enum OutreachTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETE
+}
+
 // ============================================
 // USER AUTHENTICATION & PROFILES
 // ============================================
@@ -151,7 +169,7 @@ model BloodBank {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   name  String
-  phone String  @unique
+  phone String @unique
 
   // Location — Cameroon administrative structure
   region        CameroonRegion
@@ -165,6 +183,11 @@ model BloodBank {
 
   // Official registration
   licenseNumber String? // Numéro d'agrément — issued by Ministère de la Santé Publique
+
+  // v2 fields — persistent profile for blood bank relationship
+  contactName        String? // Name of the contact person
+  languagePreference String?                    @default("FR") // "FR" | "EN"
+  conversationState  BloodBankConversationState @default(IDLE)
 
   // Relationships
   registeredDonors   Donor[]
@@ -191,7 +214,7 @@ model Doctor {
   specialization String? // e.g., "Cardiology", "Surgery"
   registrationNo String  @unique // Medical council registration
 
-  hospitalInvite HospitalInvite?
+  hospitalInvite   HospitalInvite?
   registeredDonors Donor[]
 
   createdAt DateTime @default(now())
@@ -249,19 +272,30 @@ model Donor {
   hospital    Hospital?  @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
   bloodBankId String?
   bloodBank   BloodBank? @relation(fields: [bloodBankId], references: [id], onDelete: SetNull)
-  doctorId    String? 
+  doctorId    String?
   doctor      Doctor?    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
 
   // Personal Information (NEVER shown in UI)
-  name           String
-  phone          String  @unique // Primary contact — WhatsApp preferred
-  email          String? 
-  dateBirth      DateTime 
-  bloodGroup     BloodGroup
-  region         CameroonRegion
-  town           String     
-  neighbourhood  String?     
-  genre          Gender
+  name          String
+  phone         String         @unique // Primary contact — WhatsApp preferred
+  email         String?
+  dateBirth     DateTime
+  bloodGroup    BloodGroup
+  region        CameroonRegion
+  town          String
+  neighbourhood String?
+  genre         Gender
+
+  // v2 fields — persistent profile for personalised outreach
+  preferredName      String? // What the donor likes to be called
+  languagePreference String?                @default("FR") // "FR" | "EN"
+  conversationState  DonorConversationState @default(IDLE)
+  onboardingComplete Boolean                @default(false)
+  lastDonationDate   DateTime? // Updated after confirmed donation
+  healthNotes        String? // Free text — NOT medical diagnosis
+  availabilityNotes  String? // e.g. "Not available in December"
+  messagesSentCount  Int                    @default(0) // Total outreach messages sent ever
+  optOutAt           DateTime? // Set when donor requests removal
 
   // AI Agent outreach records
   donorResponses DonorResponse[]
@@ -322,6 +356,7 @@ model BloodRequest {
   // Agent outreach relations
   donorResponses     DonorResponse[]
   bloodBankResponses BloodBankResponse[]
+  outreachTasks      OutreachTask[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -375,4 +410,41 @@ model BloodBankResponse {
   @@unique([requestId, bloodBankId])
   @@index([requestId])
   @@map("blood_bank_responses")
+}
+
+// ============================================
+// V2 — PHONE NUMBER REGISTRY
+// ============================================
+
+// Maps E.164 phone numbers to entities (donors or blood banks)
+// Used by WhatsApp webhook to route incoming messages
+model PhoneNumberRegistry {
+  id         String @id @default(uuid())
+  phone      String @unique // E.164 without + (e.g. "237612345678")
+  entityType String // "DONOR" | "BLOOD_BANK"
+  entityId   String // Foreign key to Donor.id or BloodBank.id
+
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@map("phone_number_registry")
+}
+
+// ============================================
+// V2 — OUTREACH TASK
+// ============================================
+
+// Created by Doctor Coordinator when delegating to Donor Coordinator
+model OutreachTask {
+  id              String             @id @default(uuid())
+  requestId       String
+  request         BloodRequest       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  status          OutreachTaskStatus @default(PENDING)
+  donorsContacted Int                @default(0)
+  banksContacted  Int                @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([requestId])
+  @@map("outreach_tasks")
 }

@@ -1,15 +1,24 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Inject, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RegisterDonorDto } from './dto/register-donor.dto';
+import { DONOR_COORDINATOR_TOKEN } from '../../services/agents/voltagent.module';
+import { Agent } from '@voltagent/core';
+import { DonorCoordinatorContext } from '../../services/agents/donor-coordinator/prompts';
 
 interface RegisteredBy {
   bloodBankId?: string;
   hospitalId?: string;
+  doctorId?: string;
 }
 
 @Injectable()
 export class DonorsService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(DonorsService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    @Inject(DONOR_COORDINATOR_TOKEN) private readonly donorCoordinator: Agent,
+  ) {}
 
   // ── Phone checks ──────────────────────────────────────────────────────────
 
@@ -44,7 +53,7 @@ export class DonorsService {
    * Called by BloodBanksService, HospitalsService, and DoctorsService.
    *
    * @param dto          Validated registration payload
-   * @param registeredBy Either { bloodBankId } or { hospitalId }
+   * @param registeredBy Either { bloodBankId }, { hospitalId }, or { doctorId }
    *
    * Throws ConflictException (HTTP 409) if phone is already registered.
    * NestJS serialises this automatically — callers need no try/catch.
@@ -69,7 +78,7 @@ export class DonorsService {
       }
     }
 
-    return this.prisma.donor.create({
+    const donor = await this.prisma.donor.create({
       data: {
         name: dto.name,
         phone: dto.phone,
@@ -85,7 +94,55 @@ export class DonorsService {
           bloodBankId: registeredBy.bloodBankId,
         }),
         ...(registeredBy.hospitalId && { hospitalId: registeredBy.hospitalId }),
+        ...(registeredBy.doctorId && { doctorId: registeredBy.doctorId }),
       },
     });
+
+    // -----------------------------------------------------------------------
+    // V2: Populate PhoneNumberRegistry
+    // -----------------------------------------------------------------------
+    const cleanPhone = donor.phone.replace(/\+/g, '').trim();
+    await this.prisma.phoneNumberRegistry.upsert({
+      where: { phone: cleanPhone },
+      update: { entityId: donor.id, entityType: 'DONOR' },
+      create: {
+        phone: cleanPhone,
+        entityId: donor.id,
+        entityType: 'DONOR',
+      },
+    });
+
+    // -----------------------------------------------------------------------
+    // V2: Trigger Donor Coordinator for Onboarding
+    // -----------------------------------------------------------------------
+    const sessionKey = `donor:${donor.id}`;
+    const donorContext: DonorCoordinatorContext = {
+      trigger: 'ONBOARDING',
+      entityType: 'DONOR',
+      entityId: donor.id,
+      entityName: donor.name,
+      entityLanguage: 'FR', // Defaulting to French for Cameroon
+    };
+
+    this.logger.log(`Triggering onboarding for donor: ${sessionKey}`);
+
+    this.donorCoordinator
+      .generateText(
+        `New donor registered: ${donor.name} (${donor.phone}). Start onboarding conversation.`,
+        {
+          userId: sessionKey,
+          context: new Map<string | symbol, unknown>([
+            ['donorCoordinatorContext', donorContext],
+          ]),
+        },
+      )
+      .catch((err: unknown) => {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.logger.error(
+          `Failed to trigger onboarding for ${sessionKey}: ${error.message}`,
+        );
+      });
+
+    return donor;
   }
 }

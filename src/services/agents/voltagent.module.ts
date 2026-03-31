@@ -8,38 +8,40 @@ import { ConfigService } from '@nestjs/config';
 import { VoltAgent } from '@voltagent/core';
 import { honoServer } from '@voltagent/server-hono';
 import { createPinoLogger } from '@voltagent/logger';
-import { createCoordinatorAgent } from './agents';
+import { createDoctorCoordinatorAgent } from './doctor-coordinator/agent';
+import { createDonorCoordinatorAgent } from './donor-coordinator/agent';
 import type { Agent } from '@voltagent/core';
 
-const VOLT_AGENT_TOKEN = 'VOLT_AGENT';
-export const COORDINATOR_AGENT_TOKEN = 'COORDINATOR_AGENT';
+export const DOCTOR_COORDINATOR_TOKEN = 'DOCTOR_COORDINATOR_AGENT';
+export const DONOR_COORDINATOR_TOKEN = 'DONOR_COORDINATOR_AGENT';
+export const VOLT_AGENT_TOKEN = 'VOLT_AGENT';
 
-/**
- * VoltAgentModule
- *
- * Integrates the VoltAgent coordinator into NestJS lifecycle.
- *
- * The agent (and its PostgreSQLMemoryAdapter) is created inside useFactory,
- * which runs after ConfigModule has loaded all env vars from .env — matching
- * the same pattern used by PrismaService and AuthModule for DB credentials.
- *
- * This prevents the "client password must be a string" SASL error that occurs
- * when process.env values are read before ConfigModule has populated them.
- */
+// Keep the old token as an alias so existing code (blood-requests.service.ts,
+// whatsapp.service.ts etc.) can still use COORDINATOR_AGENT_TOKEN without
+// modification.
+export const COORDINATOR_AGENT_TOKEN = DOCTOR_COORDINATOR_TOKEN;
+
 @Module({
   providers: [
     {
-      provide: COORDINATOR_AGENT_TOKEN,
-      useFactory: (config: ConfigService) => {
-        // createCoordinatorAgent uses ConfigService to read DB credentials,
-        // so they are guaranteed to be available at this point.
-        return createCoordinatorAgent(config);
-      },
+      provide: DOCTOR_COORDINATOR_TOKEN,
+      useFactory: (config: ConfigService) =>
+        createDoctorCoordinatorAgent(config),
+      inject: [ConfigService],
+    },
+    {
+      provide: DONOR_COORDINATOR_TOKEN,
+      useFactory: (config: ConfigService) =>
+        createDonorCoordinatorAgent(config),
       inject: [ConfigService],
     },
     {
       provide: VOLT_AGENT_TOKEN,
-      useFactory: (coordinator: Agent, config: ConfigService) => {
+      useFactory: (
+        doctorCoordinator: Agent,
+        donorCoordinator: Agent,
+        config: ConfigService,
+      ) => {
         const logger = createPinoLogger({
           name: 'sangroot-agent',
           level: config.get('NODE_ENV') === 'production' ? 'warn' : 'info',
@@ -48,15 +50,23 @@ export const COORDINATOR_AGENT_TOKEN = 'COORDINATOR_AGENT';
         const port = config.get<number>('VOLT_PORT') ?? 3141;
 
         return new VoltAgent({
-          agents: { coordinator },
+          agents: { doctorCoordinator, donorCoordinator },
           server: honoServer({ port }),
           logger,
         });
       },
-      inject: [COORDINATOR_AGENT_TOKEN, ConfigService],
+      inject: [
+        DOCTOR_COORDINATOR_TOKEN,
+        DONOR_COORDINATOR_TOKEN,
+        ConfigService,
+      ],
     },
   ],
-  exports: [VOLT_AGENT_TOKEN, COORDINATOR_AGENT_TOKEN],
+  exports: [
+    VOLT_AGENT_TOKEN,
+    DOCTOR_COORDINATOR_TOKEN,
+    DONOR_COORDINATOR_TOKEN,
+  ],
 })
 export class VoltAgentModule
   implements OnApplicationBootstrap, OnModuleDestroy
@@ -67,11 +77,9 @@ export class VoltAgentModule
 
   onApplicationBootstrap() {
     // VoltAgent starts automatically when instantiated via honoServer().
-    // Nothing extra needed here — the server is already listening.
   }
 
   async onModuleDestroy() {
-    // Gracefully shut down the VoltAgent HTTP server when NestJS stops.
     try {
       await (
         this.voltAgent as unknown as { stop?: () => Promise<void> }

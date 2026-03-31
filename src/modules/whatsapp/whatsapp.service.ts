@@ -1,8 +1,8 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { COORDINATOR_AGENT_TOKEN } from '../../services/agents/voltagent.module';
+import { DONOR_COORDINATOR_TOKEN } from '../../services/agents/voltagent.module';
 import type { Agent } from '@voltagent/core';
-import { BloodRequestContext } from '../../services/agents/prompts';
+import type { DonorCoordinatorContext } from '../../services/agents/donor-coordinator/prompts';
 
 export interface WhatsAppMessage {
   from: string;
@@ -50,7 +50,7 @@ export class WhatsappService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(COORDINATOR_AGENT_TOKEN) private readonly coordinator: Agent,
+    @Inject(DONOR_COORDINATOR_TOKEN) private readonly donorCoordinator: Agent,
   ) {}
 
   async processWebhook(body: WhatsAppWebhookPayload) {
@@ -65,114 +65,114 @@ export class WhatsappService {
       return;
     }
 
-    const from = message.from; // Sender's phone number
+    const from = message.from; // E.164 without + e.g. "237612345678"
     const textBody = message.text.body;
 
     this.logger.log(`Received message from ${from}: ${textBody}`);
 
-    // 1. Find donor or blood bank by phone number
-    // Note: Phone numbers in DB might have + prefix or not.
-    // WhatsApp 'from' is usually without +.
-    const donor = await this.prisma.donor.findFirst({
+    // -----------------------------------------------------------------------
+    // 1. Identity resolution via PhoneNumberRegistry (v2)
+    // -----------------------------------------------------------------------
+    const registry = await this.prisma.phoneNumberRegistry.findFirst({
       where: {
         OR: [{ phone: from }, { phone: `+${from}` }],
       },
     });
 
-    const bloodBank = await this.prisma.bloodBank.findFirst({
-      where: {
-        OR: [{ phone: from }, { phone: `+${from}` }],
-      },
-    });
-
-    if (!donor && !bloodBank) {
-      this.logger.warn(
-        `No donor or blood bank found for phone number: ${from}`,
-      );
+    if (!registry) {
+      this.logger.warn(`No entity registered for phone: ${from}`);
       return;
     }
 
-    // 2. Find the most recent active blood request for this user
-    let activeRequest = null;
+    const entityType = registry.entityType as 'DONOR' | 'BLOOD_BANK';
+    const entityId = registry.entityId;
 
-    if (donor) {
+    // -----------------------------------------------------------------------
+    // 2. Look up entity display name + language
+    // -----------------------------------------------------------------------
+    let entityName: string = 'Unknown';
+    let entityLanguage = 'FR';
+
+    if (entityType === 'DONOR') {
+      const donor = await this.prisma.donor.findUnique({
+        where: { id: entityId },
+        select: { name: true, preferredName: true, languagePreference: true },
+      });
+      if (donor) {
+        entityName = donor.preferredName ?? donor.name;
+        entityLanguage = donor.languagePreference ?? 'FR';
+      }
+    } else {
+      const bank = await this.prisma.bloodBank.findUnique({
+        where: { id: entityId },
+        select: { name: true, contactName: true, languagePreference: true },
+      });
+      if (bank) {
+        entityName = bank.contactName ?? bank.name;
+        entityLanguage = bank.languagePreference ?? 'FR';
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. Find active blood request for this entity
+    // -----------------------------------------------------------------------
+    let activeRequestId: string | null = null;
+
+    if (entityType === 'DONOR') {
       const donorResponse = await this.prisma.donorResponse.findFirst({
         where: {
-          donorId: donor.id,
-          request: {
-            status: 'IN_PROGRESS',
-          },
+          donorId: entityId,
+          request: { status: 'IN_PROGRESS' },
         },
-        orderBy: {
-          request: {
-            createdAt: 'desc',
-          },
-        },
-        include: {
-          request: true,
-        },
+        orderBy: { request: { createdAt: 'desc' } },
+        select: { request: { select: { id: true } } },
       });
-      activeRequest = donorResponse?.request;
-    } else if (bloodBank) {
-      const bloodBankResponse = await this.prisma.bloodBankResponse.findFirst({
+      activeRequestId = donorResponse?.request.id ?? null;
+    } else {
+      const bankResponse = await this.prisma.bloodBankResponse.findFirst({
         where: {
-          bloodBankId: bloodBank.id,
-          request: {
-            status: 'IN_PROGRESS',
-          },
+          bloodBankId: entityId,
+          request: { status: 'IN_PROGRESS' },
         },
-        orderBy: {
-          request: {
-            createdAt: 'desc',
-          },
-        },
-        include: {
-          request: true,
-        },
+        orderBy: { request: { createdAt: 'desc' } },
+        select: { request: { select: { id: true } } },
       });
-      activeRequest = bloodBankResponse?.request;
+      activeRequestId = bankResponse?.request.id ?? null;
     }
 
-    if (!activeRequest) {
-      this.logger.warn(
-        `No active blood request found for ${donor ? 'donor' : 'blood bank'} ${from}`,
-      );
-      return;
-    }
+    // -----------------------------------------------------------------------
+    // 4. Build context and route to Donor Coordinator
+    // -----------------------------------------------------------------------
+    const sessionKey =
+      entityType === 'DONOR' ? `donor:${entityId}` : `bloodbank:${entityId}`;
 
-    // 3. Forward message to the agent coordinator
     this.logger.log(
-      `Routing message from ${from} to coordinator for request ${activeRequest.id}`,
+      `Routing message [${entityType}:${entityId}] → Donor Coordinator (session: ${sessionKey})`,
     );
 
-    // We need to rebuild the context for the agent
-    const requester = await this.prisma.doctor.findUnique({
-      where: { userId: activeRequest.requesterId },
-      select: { phone: true },
-    });
-
-    const bloodRequestContext: BloodRequestContext = {
-      requestId: activeRequest.id,
-      bloodGroup: activeRequest.bloodGroup,
-      unitsRequired: activeRequest.unitsRequired,
-      urgency: activeRequest.urgency,
-      hospitalName: activeRequest.hospitalName,
-      town: activeRequest.town,
-      region: activeRequest.region,
-      requiredBy: activeRequest.requiredBy.toISOString(),
-      patientAge: activeRequest.patientAge,
-      patientGender: activeRequest.patientGender,
-      medicalReason: activeRequest.medicalReason ?? undefined,
-      doctorPhone: requester?.phone || '',
+    const donorContext: DonorCoordinatorContext = {
+      trigger: 'INCOMING_MESSAGE',
+      entityType,
+      entityId,
+      entityName,
+      entityLanguage,
+      incomingMessage: textBody,
+      activeRequestId,
     };
 
-    const agentMessage = `Incoming message from ${donor ? 'donor' : 'blood bank'} (${from}): ${textBody}`;
+    const agentMessage = `Incoming WhatsApp message from ${entityType.toLowerCase()} "${entityName}" (${from}): "${textBody}"`;
 
-    await this.coordinator.generateText(agentMessage, {
-      userId: activeRequest.id,
-      context: new Map<string | symbol, unknown>([
-        ['bloodRequest', bloodRequestContext],
-      ]),
-    });
+    // Fire-and-forget — do not block the webhook response
+    this.donorCoordinator
+      .generateText(agentMessage, {
+        userId: sessionKey,
+        context: new Map<string | symbol, unknown>([
+          ['donorCoordinatorContext', donorContext],
+        ]),
+      })
+      .catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Donor coordinator error for ${sessionKey}: ${msg}`);
+      });
   }
 }

@@ -59,7 +59,7 @@ export class BloodBanksService {
       }
     }
 
-    return this.prisma.bloodBank.update({
+    const updated = await this.prisma.bloodBank.update({
       where: { userId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -91,6 +91,24 @@ export class BloodBanksService {
         updatedAt: true,
       },
     });
+
+    // -----------------------------------------------------------------------
+    // V2: Populate PhoneNumberRegistry
+    // -----------------------------------------------------------------------
+    if (updated.phone) {
+      const cleanPhone = updated.phone.replace(/\+/g, '').trim();
+      await this.prisma.phoneNumberRegistry.upsert({
+        where: { phone: cleanPhone },
+        update: { entityId: updated.id, entityType: 'BLOOD_BANK' },
+        create: {
+          phone: cleanPhone,
+          entityId: updated.id,
+          entityType: 'BLOOD_BANK',
+        },
+      });
+    }
+
+    return updated;
   }
 
   async registerDonor(bloodBankUserId: string, dto: RegisterDonorDto) {
