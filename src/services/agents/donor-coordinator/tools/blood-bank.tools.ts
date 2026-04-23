@@ -136,7 +136,7 @@ export const loadBloodBankConversation = createTool({
     try {
       const userId = `bloodbank:${bankId}`;
       const result = await pool.query(
-        `SELECT role, content, created_at 
+        `SELECT role, parts, created_at 
          FROM sangroot_agent_memory_messages 
          WHERE user_id = $1 
          ORDER BY created_at DESC 
@@ -145,11 +145,26 @@ export const loadBloodBankConversation = createTool({
       );
       const messages = result.rows
         .reverse()
-        .map((row: { role: string; content: string; created_at: string }) => ({
-          role: row.role,
-          content: row.content,
-          timestamp: row.created_at,
-        }));
+        .map((row: { role: string; parts: unknown; created_at: string }) => {
+          let content = '';
+          if (Array.isArray(row.parts)) {
+            content = row.parts
+              .map((p: unknown) => {
+                const part = p as Record<string, unknown> | null;
+                return part && typeof part.text === 'string'
+                  ? part.text
+                  : JSON.stringify(p);
+              })
+              .join('\\n');
+          } else {
+            content = String(row.parts);
+          }
+          return {
+            role: row.role,
+            content,
+            timestamp: row.created_at,
+          };
+        });
       return { success: true, messages, total: messages.length };
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -187,7 +202,7 @@ export const sendBloodBankMessage = createTool({
         body: messageBody,
       });
 
-      await fetch(`${API_URL()}/internal/agents/blood-bank-conversations`, {
+      await fetch(`${API_URL()}/internal/agents/conversations`, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({
