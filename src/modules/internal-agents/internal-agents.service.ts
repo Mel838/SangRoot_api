@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Inject,
   NotFoundException,
   BadRequestException,
   Logger,
@@ -22,6 +23,8 @@ import { UpdateDonorProfileV2Dto } from './dto/update-donor-profile-v2.dto';
 import { UpdateBloodBankProfileV2Dto } from './dto/update-blood-bank-profile-v2.dto';
 import { AppendConversationDto } from './dto/append-conversation.dto';
 import { DoctorCoordinatorCallbackDto } from './dto/doctor-coordinator-callback.dto';
+import { DONOR_COORDINATOR_TOKEN } from '../../services/agents/voltagent.module';
+import type { Agent } from '@voltagent/core';
 
 /**
  * Send a WhatsApp message via WhatsApp Cloud API (Helper for service)
@@ -70,7 +73,10 @@ async function sendWhatsAppMessageHelper(options: {
 export class InternalAgentsService {
   private readonly logger = new Logger(InternalAgentsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(DONOR_COORDINATOR_TOKEN) private readonly donorCoordinator: Agent,
+  ) {}
 
   // ---------------------------------------------------------------------------
   // V2 — OUTREACH TASKS
@@ -84,12 +90,54 @@ export class InternalAgentsService {
       throw new NotFoundException(`BloodRequest ${dto.requestId} not found`);
     }
 
-    return this.prisma.outreachTask.create({
+    const task = await this.prisma.outreachTask.create({
       data: {
         requestId: dto.requestId,
         status: OutreachTaskStatus.IN_PROGRESS,
       },
     });
+
+    // ── Trigger Donor Coordinator agent (fire-and-forget) ──────────────
+    const context = new Map<string | symbol, unknown>([
+      [
+        'donorCoordinatorContext',
+        {
+          trigger: 'OUTREACH_TASK',
+          taskId: task.id,
+          requestId: dto.requestId,
+          bloodGroup: dto.bloodGroup,
+          urgency: dto.urgency,
+          region: dto.region,
+          town: dto.town,
+          unitsNeeded: dto.unitsNeeded,
+          timeoutMinutes: dto.timeoutMinutes,
+        },
+      ],
+    ]);
+
+    this.donorCoordinator
+      .generateText(
+        `Outreach task received. Blood group: ${dto.bloodGroup}, ` +
+          `urgency: ${dto.urgency}, region: ${dto.region}, town: ${dto.town}, ` +
+          `units needed: ${dto.unitsNeeded}. Begin donor and blood bank outreach now.`,
+        {
+          userId: `outreach:${dto.requestId}`,
+          context,
+        },
+      )
+      .then(() =>
+        this.logger.log(
+          `Donor Coordinator finished outreach for request ${dto.requestId}`,
+        ),
+      )
+      .catch((err) =>
+        this.logger.error(
+          `Donor Coordinator outreach failed for request ${dto.requestId}`,
+          err,
+        ),
+      );
+
+    return { taskId: task.id, status: task.status };
   }
 
   async getOutreachProgress(requestId: string) {
