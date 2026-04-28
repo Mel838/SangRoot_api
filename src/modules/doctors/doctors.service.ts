@@ -97,6 +97,7 @@ export class DoctorsService {
     //    Doctors register donors under their hospital's ID.
     return this.donorsService.registerDonor(dto, {
       hospitalId: doctor.hospitalId,
+      doctorId: doctor.id,
     });
   }
 }
