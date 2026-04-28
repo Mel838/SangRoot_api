@@ -8,5 +8,6 @@ import { VoltAgentModule } from '../../services/agents/voltagent.module';
   imports: [PrismaModule, VoltAgentModule],
   controllers: [BloodRequestsController],
   providers: [BloodRequestsService],
+  exports: [BloodRequestsService],
 })
 export class BloodRequestsModule {}

@@ -1,4 +1,4 @@
-import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBloodRequestDto } from './dto/create-blood-request.dto';
 import type { Agent } from '@voltagent/core';
@@ -173,5 +173,162 @@ export class BloodRequestsService {
       totalUnitsFromBanks,
       bloodBanks: bloodBankSummary,
     };
+  }
+
+  // ========== NEW METHODS FOR DOCTOR HISTORY ==========
+
+  /**
+   * Get all blood requests made by a specific doctor with pagination and filtering
+   */
+  async getDoctorRequests(doctorId: string, page: number = 1, limit: number = 10, status?: string) {
+    const skip = (page - 1) * limit;
+    
+    // Build where clause
+    const where: any = {
+      requesterId: doctorId,
+    };
+    
+    // Filter by status if provided
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    
+    // Get total count for pagination
+    const total = await this.prisma.bloodRequest.count({ where });
+    
+    // Get requests with related data
+    const requests = await this.prisma.bloodRequest.findMany({
+      where,
+      include: {
+        donorResponses: {
+          select: {
+            availability: true,
+            donor: {
+              select: {
+                id: true,
+                name: true,
+                bloodGroup: true,
+              },
+            },
+          },
+        },
+        bloodBankResponses: {
+          select: {
+            available: true,
+            unitsAvailable: true,
+            bloodBank: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      skip,
+      take: limit,
+    });
+    
+    // Calculate summary stats for each request
+    const enrichedRequests = requests.map(request => ({
+      ...request,
+      summary: {
+        donorsContacted: request.donorResponses.length,
+        donorsAvailable: request.donorResponses.filter(r => r.availability === 'AVAILABLE').length,
+        bloodBanksContacted: request.bloodBankResponses.length,
+        bloodBanksAvailable: request.bloodBankResponses.filter(r => r.available).length,
+        hasFeedback: false,
+      },
+      // Format dates for easier display
+      formattedDate: request.createdAt.toLocaleDateString(),
+      formattedTime: request.createdAt.toLocaleTimeString(),
+      timeAgo: this.getTimeAgo(request.createdAt),
+    }));
+    
+    return {
+      data: enrichedRequests,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  /**
+   * Get a single blood request by ID with full details
+   */
+  async getDoctorRequestById(doctorId: string, requestId: string) {
+    const request = await this.prisma.bloodRequest.findUnique({
+      where: { id: requestId },
+      include: {
+        donorResponses: {
+          include: {
+            donor: {
+              select: {
+                id: true,
+                name: true,
+                bloodGroup: true,
+              },
+            },
+          },
+        },
+        bloodBankResponses: {
+          include: {
+            bloodBank: {
+              select: {
+                id: true,
+                name: true,
+                phone: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Blood request not found');
+    }
+
+    if (request.requesterId !== doctorId) {
+      throw new ForbiddenException('You can only view your own requests');
+    }
+
+    // Calculate summary
+    const summary = {
+      donorsContacted: request.donorResponses.length,
+      donorsAvailable: request.donorResponses.filter(r => r.availability === 'AVAILABLE').length,
+      bloodBanksContacted: request.bloodBankResponses.length,
+      bloodBanksAvailable: request.bloodBankResponses.filter(r => r.available).length,
+    };
+
+    return {
+      ...request,
+      summary,
+    };
+  }
+
+  /**
+   * Helper method to get time ago string
+   */
+  private getTimeAgo(date: Date): string {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Get, Param } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param, Query, Req, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { BloodRequestsService } from './blood-requests.service';
 import { CreateBloodRequestDto } from './dto/create-blood-request.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -9,11 +9,15 @@ import {
   CurrentUser as CurrentUserType,
 } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Controller('blood-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BloodRequestsController {
-  constructor(private readonly bloodRequestsService: BloodRequestsService) {}
+  constructor(
+    private readonly bloodRequestsService: BloodRequestsService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * POST /blood-requests
@@ -40,5 +44,50 @@ export class BloodRequestsController {
     @Param('id') id: string,
   ) {
     return this.bloodRequestsService.getProgress(user.userId, id);
+  }
+
+  // ========== NEW ENDPOINTS FOR DOCTOR HISTORY ==========
+
+  /**
+   * GET /blood-requests/my-requests
+   * Get all blood requests made by the logged-in doctor
+   */
+  @Get('my-requests')
+  @Roles(UserRole.DOCTOR)
+  async getMyRequests(
+    @Req() req: any,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('status') status?: string,
+  ) {
+    const doctorId = req.user.id;
+    return this.bloodRequestsService.getDoctorRequests(doctorId, page, limit, status);
+  }
+
+  /**
+   * GET /blood-requests/my-requests/:id
+   * Get a specific blood request with full details
+   */
+  @Get('my-requests/:id')
+  @Roles(UserRole.DOCTOR)
+  async getMyRequestById(
+    @Req() req: any,
+    @Param('id') id: string,
+  ) {
+    const doctorId = req.user.id;
+    
+    const request = await this.bloodRequestsService.getDoctorRequestById(doctorId, id);
+    
+    // Check if feedback exists
+    const feedback = await this.prisma.feedback.findUnique({
+      where: { requestId: id },
+      select: { id: true, overallRating: true, createdAt: true },
+    });
+    
+    return {
+      ...request,
+      hasFeedback: !!feedback,
+      feedback: feedback || null,
+    };
   }
 }
