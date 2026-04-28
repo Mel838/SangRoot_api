@@ -2,8 +2,8 @@ import { Injectable, Inject, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBloodRequestDto } from './dto/create-blood-request.dto';
 import type { Agent } from '@voltagent/core';
-import type { BloodRequestContext } from '../../services/agents/prompts';
-import { COORDINATOR_AGENT_TOKEN } from '../../services/agents/voltagent.module';
+import { DOCTOR_COORDINATOR_TOKEN } from '../../services/agents/voltagent.module';
+import { DoctorCoordinatorContext } from '../../services/agents/doctor-coordinator/prompts';
 
 @Injectable()
 export class BloodRequestsService {
@@ -11,7 +11,7 @@ export class BloodRequestsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Inject(COORDINATOR_AGENT_TOKEN) private readonly coordinator: Agent,
+    @Inject(DOCTOR_COORDINATOR_TOKEN) private readonly coordinator: Agent,
   ) {}
 
   /**
@@ -64,9 +64,7 @@ export class BloodRequestsService {
     town: string;
     region: string;
     requiredBy: Date;
-    patientAge: number;
-    patientGender: string;
-    medicalReason: string | null;
+    createdAt: Date;
   }) {
     // Update status to IN_PROGRESS
     await this.prisma.bloodRequest.update({
@@ -80,47 +78,41 @@ export class BloodRequestsService {
       select: { phone: true },
     });
 
-    // Build the context the agent prompts read via getRequestBlock()
-    const bloodRequestContext: BloodRequestContext = {
+    // Build the context for the Doctor Coordinator
+    const doctorContext: DoctorCoordinatorContext = {
       requestId: request.id,
       bloodGroup: request.bloodGroup,
-      unitsRequired: request.unitsRequired,
-      urgency: request.urgency,
+      unitsNeeded: request.unitsRequired,
+      urgency: request.urgency as 'ROUTINE' | 'URGENT' | 'CRITICAL',
       hospitalName: request.hospitalName,
-      town: request.town,
       region: request.region,
-      requiredBy: request.requiredBy.toISOString(),
-      patientAge: request.patientAge,
-      patientGender: request.patientGender,
-      medicalReason: request.medicalReason ?? undefined,
+      town: request.town,
       doctorPhone: requester.phone,
+      doctorLanguage: 'FR', // Defaulting to French
+      submittedAt: request.createdAt.toISOString(),
     };
-
-    // The coordinator agent is injected directly via COORDINATOR_AGENT_TOKEN
 
     const message =
       `New blood request submitted.\n` +
-      `Request ID: ${bloodRequestContext.requestId}\n` +
-      `Blood Group: ${bloodRequestContext.bloodGroup}\n` +
-      `Units Needed: ${bloodRequestContext.unitsRequired}\n` +
-      `Urgency: ${bloodRequestContext.urgency}\n` +
-      `Hospital: ${bloodRequestContext.hospitalName}, ${bloodRequestContext.town}, ${bloodRequestContext.region}\n` +
-      `Required By: ${bloodRequestContext.requiredBy}\n` +
-      (bloodRequestContext.medicalReason
-        ? `Medical Reason: ${bloodRequestContext.medicalReason}\n`
-        : '') +
+      `Request ID: ${doctorContext.requestId}\n` +
+      `Blood Group: ${doctorContext.bloodGroup}\n` +
+      `Units Needed: ${doctorContext.unitsNeeded}\n` +
+      `Urgency: ${doctorContext.urgency}\n` +
+      `Hospital: ${doctorContext.hospitalName}, ${doctorContext.town}, ${doctorContext.region}\n` +
       `\nPlease begin outreach immediately.`;
 
-    this.logger.log(`Triggering coordinator for request ${request.id}`);
+    this.logger.log(`Triggering Doctor Coordinator for request ${request.id}`);
 
     await this.coordinator.generateText(message, {
       userId: request.id, // Use request ID as session identifier
       context: new Map<string | symbol, unknown>([
-        ['bloodRequest', bloodRequestContext],
+        ['doctorCoordinatorContext', doctorContext],
       ]),
     });
 
-    this.logger.log(`Coordinator finished processing request ${request.id}`);
+    this.logger.log(
+      `Doctor Coordinator finished processing request ${request.id}`,
+    );
   }
 
   /**

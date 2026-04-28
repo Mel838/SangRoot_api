@@ -1,0 +1,42 @@
+Loaded Prisma config from prisma.config.ts.
+
+Running seed command `ts-node --compiler-options {"module":"CommonJS"} prisma/seed.ts` ...
+🌱 Seeding database — all 10 Cameroonian regions…
+
+❌ Seed failed: PrismaClientKnownRequestError: 
+Invalid `prisma.user.upsert()` invocation in
+/home/roger/Desktop/work/SA/SangRoot_api/prisma/seed.ts:221:36
+
+  218 const hospitals: Hospital[] = [];
+  219 
+  220 for (const h of hospitalData) {
+→ 221   const user = await prisma.user.upsert(
+The column `authProvider` does not exist in the current database.
+    at zr.handleRequestError (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async a (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:808:24)
+    at async main (/home/roger/Desktop/work/SA/SangRoot_api/prisma/seed.ts:221:18) {
+  code: 'P2022',
+  meta: {
+    modelName: 'User',
+    driverAdapterError: DriverAdapterError: ColumnNotFound
+        at PgTransaction.onError (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/adapter-pg/dist/index.js:687:11)
+        at PgTransaction.performIO (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/adapter-pg/dist/index.js:682:12)
+        at processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at async PgTransaction.queryRaw (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/adapter-pg/dist/index.js:602:30)
+        at async e.interpretNode (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:182:26)
+        at async e.interpretNode (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:209:41)
+        at async e.interpretNode (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:124:29)
+        at async e.interpretNode (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:284:18)
+        at async e.interpretNode (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:124:29)
+        at async e.interpretNode (/home/roger/Desktop/work/SA/SangRoot_api/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:268:41) {
+      cause: [Object]
+    }
+  },
+  clientVersion: '7.4.2'
+}
+
+An error occurred while running the seed command:
+Error: Command failed with exit code 1: ts-node --compiler-options {"module":"CommonJS"} prisma/seed.ts
