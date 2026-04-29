@@ -395,3 +395,40 @@ enum InviteStatus {
   REJECTED
   CANCELLED
 }
+
+// ============================================
+// V2 — PHONE NUMBER REGISTRY
+// ============================================
+
+// Maps E.164 phone numbers to entities (donors or blood banks)
+// Used by WhatsApp webhook to route incoming messages
+model PhoneNumberRegistry {
+  id         String @id @default(uuid())
+  phone      String @unique // E.164 without + (e.g. "237612345678")
+  entityType String // "DONOR" | "BLOOD_BANK"
+  entityId   String // Foreign key to Donor.id or BloodBank.id
+
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@map("phone_number_registry")
+}
+
+// ============================================
+// V2 — OUTREACH TASK
+// ============================================
+
+// Created by Doctor Coordinator when delegating to Donor Coordinator
+model OutreachTask {
+  id              String             @id @default(uuid())
+  requestId       String
+  request         BloodRequest       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  status          OutreachTaskStatus @default(PENDING)
+  donorsContacted Int                @default(0)
+  banksContacted  Int                @default(0)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([requestId])
+  @@map("outreach_tasks")
+}
