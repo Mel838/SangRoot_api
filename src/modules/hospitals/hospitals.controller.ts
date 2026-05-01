@@ -49,4 +49,10 @@ export class HospitalsController {
   ) {
     return this.hospitalsService.inviteDoctor(user.userId, inviteDoctorDto);
   }
+
+  @Get('stats')
+  @Roles(UserRole.HOSPITAL)
+  async getStats(@CurrentUser() user: CurrentUserType) {
+    return this.hospitalsService.getStats(user.userId);
+  }
 }
