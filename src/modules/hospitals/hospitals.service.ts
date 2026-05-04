@@ -124,4 +124,31 @@ export class HospitalsService {
       hospitalId: hospitalUser.hospital.id,
     });
   }
+
+  async getStats(hospitalUserId: string) {
+    const hospitalUser = await this.prisma.user.findUnique({
+      where: { id: hospitalUserId },
+      include: { hospital: true },
+    });
+
+    if (!hospitalUser) throw new NotFoundException('Hospital user not found');
+    if (!hospitalUser.hospital)
+      throw new NotFoundException('Hospital profile not found');
+
+    const hospitalId = hospitalUser.hospital.id;
+
+    const [doctorsCount, donorsCount, requestsCount] = await Promise.all([
+      this.prisma.doctor.count({ where: { hospitalId } }),
+      this.prisma.donor.count({ where: { hospitalId } }),
+      this.prisma.bloodRequest.count({
+        where: { requesterId: hospitalUserId },
+      }),
+    ]);
+
+    return {
+      doctors: doctorsCount,
+      donors: donorsCount,
+      requests: requestsCount,
+    };
+  }
 }
