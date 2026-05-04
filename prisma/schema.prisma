@@ -1,20 +1,356 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
 }
 
-generator client {
-  provider = "prisma-client-js"
-  // This generates TypeScript code that matches your database
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String?
+  role          UserRole
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  authProvider  String         @default("local")
+  googleId      String?        @unique
+  bloodBank     BloodBank?
+  bloodRequests BloodRequest[]
+  doctor        Doctor?
+  hospital      Hospital?
+  refreshTokens RefreshToken[]
+
+  @@map("users")
 }
 
-// ============================================
-// ENUMS (Predefined Lists of Values)
-// ============================================
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Hospital {
+  id               String           @id @default(uuid())
+  userId           String           @unique
+  name             String
+  address          String?
+  phone            String
+  latitude         Float?
+  longitude        Float?
+  licenseNumber    String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  neighbourhood    String?
+  region           CameroonRegion
+  town             String
+  doctors          Doctor[]
+  registeredDonors Donor[]
+  invites          HospitalInvite[]
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([region, town])
+  @@map("hospitals")
+}
+
+model BloodBank {
+  id                 String                      @id @default(uuid())
+  userId             String                      @unique
+  name               String
+  address            String?
+  phone              String
+  latitude           Float?
+  longitude          Float?
+  licenseNumber      String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  neighbourhood      String?
+  region             CameroonRegion
+  town               String
+  contactName        String?
+  languagePreference String?                     @default("FR")
+  conversationState  BloodBankConversationState? @default(IDLE)
+  bloodBankResponses BloodBankResponse[]
+  user               User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registeredDonors   Donor[]
+
+  @@index([region, town])
+  @@map("blood_banks")
+}
+
+model Doctor {
+  id               String          @id @default(uuid())
+  userId           String          @unique
+  hospitalId       String
+  name             String
+  phone            String
+  specialization   String?
+  registrationNo   String          @unique
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  hospital         Hospital        @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registeredDonors Donor[]
+  feedbacks        Feedback[]
+  hospitalInvite   HospitalInvite?
+
+  @@index([hospitalId])
+  @@map("doctors")
+}
+
+model HospitalInvite {
+  id          String       @id @default(uuid())
+  hospitalId  String
+  doctorEmail String
+  status      InviteStatus @default(PENDING)
+  doctorId    String?      @unique
+  invitedBy   String?
+  acceptedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  doctor      Doctor?      @relation(fields: [doctorId], references: [id])
+  hospital    Hospital     @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([hospitalId, doctorEmail])
+  @@index([hospitalId])
+  @@index([doctorEmail])
+  @@index([status])
+  @@map("hospital_invites")
+}
+
+model Donor {
+  id                 String                  @id @default(uuid())
+  hospitalId         String?
+  bloodBankId        String?
+  name               String
+  email              String?
+  phone              String                  @unique
+  bloodGroup         BloodGroup
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  dateBirth          DateTime
+  genre              Gender
+  neighbourhood      String?
+  region             CameroonRegion
+  town               String
+  doctorId           String?
+  preferredName      String?
+  languagePreference String?                 @default("FR")
+  healthNotes        String?
+  lastDonationDate   DateTime?
+  optOutAt           DateTime?
+  messagesSentCount  Int                     @default(0)
+  onboardingComplete Boolean                 @default(false)
+  availabilityNotes  String?
+  conversationState  DonorConversationState? @default(IDLE)
+  donorResponses     DonorResponse[]
+  bloodBank          BloodBank?              @relation(fields: [bloodBankId], references: [id])
+  doctor             Doctor?                 @relation(fields: [doctorId], references: [id])
+  hospital           Hospital?               @relation(fields: [hospitalId], references: [id])
+
+  @@index([bloodGroup])
+  @@index([region, town])
+  @@index([hospitalId])
+  @@index([bloodBankId])
+  @@map("donors")
+}
+
+model BloodRequest {
+  id                 String              @id @default(uuid())
+  requesterId        String
+  bloodGroup         BloodGroup
+  unitsRequired      Int
+  urgency            RequestUrgency
+  status             RequestStatus       @default(PENDING)
+  patientName        String
+  patientAge         Int
+  hospitalName       String
+  hospitalAddress    String?
+  latitude           Float?
+  longitude          Float?
+  requiredBy         DateTime
+  medicalReason      String?
+  aiProcessedAt      DateTime?
+  donorsContacted    Int                 @default(0)
+  notes              String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  neighbourhood      String?
+  region             CameroonRegion
+  town               String
+  patientGender      Gender
+  willingDonorCount  Int                 @default(0)
+  reportMarkdown     String?
+  completedAt        DateTime?
+  bloodBankResponses BloodBankResponse[]
+  requester          User                @relation(fields: [requesterId], references: [id], onDelete: Cascade)
+  donorResponses     DonorResponse[]
+  feedbacks          Feedback[]
+  outreachTasks      OutreachTask[]
+
+  @@index([requesterId])
+  @@index([status])
+  @@index([bloodGroup])
+  @@index([urgency])
+  @@index([requiredBy])
+  @@index([region, town])
+  @@map("blood_requests")
+}
+
+model DonorResponse {
+  id           String            @id @default(uuid())
+  requestId    String
+  donorId      String
+  availability DonorAvailability
+  constraint   String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  donor        Donor             @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  request      BloodRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, donorId])
+  @@index([requestId])
+  @@map("donor_responses")
+}
+
+model BloodBankResponse {
+  id                     String       @id @default(uuid())
+  requestId              String
+  bloodBankId            String
+  available              Boolean
+  unitsAvailable         Int          @default(0)
+  preparationTimeMinutes Int          @default(0)
+  notes                  String?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  bloodBank              BloodBank    @relation(fields: [bloodBankId], references: [id], onDelete: Cascade)
+  request                BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, bloodBankId])
+  @@index([requestId])
+  @@map("blood_bank_responses")
+}
+
+model Feedback {
+  id                   String       @id @default(uuid())
+  requestId            String       @unique
+  doctorId             String
+  responseAccuracy     Int?
+  responseSpeed        Int?
+  communication        Int?
+  overallRating        Int?
+  comments             String?
+  whatWorked           String?
+  whatNeedsImprovement String?
+  agentResponseSummary Json?
+  status               String       @default("SUBMITTED")
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+  doctor               Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  request              BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([requestId])
+  @@index([doctorId])
+  @@index([status])
+  @@map("feedbacks")
+}
+
+model sangroot_agent_memory_conversations {
+  id                             String                           @id
+  resource_id                    String
+  user_id                        String
+  title                          String
+  metadata                       Json
+  created_at                     DateTime                         @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  updated_at                     DateTime                         @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  sangroot_agent_memory_messages sangroot_agent_memory_messages[]
+  sangroot_agent_memory_steps    sangroot_agent_memory_steps[]
+
+  @@index([resource_id], map: "idx_sangroot_agent_memory_conversations_resource_id")
+  @@index([user_id], map: "idx_sangroot_agent_memory_conversations_user_id")
+}
+
+model sangroot_agent_memory_messages {
+  conversation_id                     String
+  message_id                          String
+  user_id                             String
+  role                                String
+  parts                               Json?
+  metadata                            Json?
+  format_version                      Int?                                @default(2)
+  created_at                          DateTime                            @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  sangroot_agent_memory_conversations sangroot_agent_memory_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([conversation_id, message_id])
+  @@index([conversation_id], map: "idx_sangroot_agent_memory_messages_conversation_id")
+  @@index([created_at], map: "idx_sangroot_agent_memory_messages_created_at")
+}
+
+model sangroot_agent_memory_steps {
+  id                                  String                              @id
+  conversation_id                     String
+  user_id                             String
+  agent_id                            String
+  agent_name                          String?
+  operation_id                        String?
+  step_index                          Int
+  type                                String
+  role                                String
+  content                             String?
+  arguments                           Json?
+  result                              Json?
+  usage                               Json?
+  sub_agent_id                        String?
+  sub_agent_name                      String?
+  created_at                          DateTime                            @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  sangroot_agent_memory_conversations sangroot_agent_memory_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([conversation_id, step_index], map: "idx_sangroot_agent_memory_steps_conversation")
+  @@index([conversation_id, operation_id], map: "idx_sangroot_agent_memory_steps_operation")
+}
+
+model sangroot_agent_memory_users {
+  id         String   @id
+  metadata   Json?
+  created_at DateTime @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+  updated_at DateTime @default(dbgenerated("timezone('utc'::text, now())")) @db.Timestamptz(6)
+}
+
+model sangroot_agent_memory_workflow_states {
+  id              String   @id
+  workflow_id     String
+  workflow_name   String
+  status          String
+  input           Json?
+  context         Json?
+  workflow_state  Json?
+  suspension      Json?
+  events          Json?
+  output          Json?
+  cancellation    Json?
+  user_id         String?
+  conversation_id String?
+  metadata        Json?
+  created_at      DateTime @db.Timestamptz(6)
+  updated_at      DateTime @db.Timestamptz(6)
+
+  @@index([status], map: "idx_sangroot_agent_memory_workflow_states_status")
+  @@index([workflow_id], map: "idx_sangroot_agent_memory_workflow_states_workflow_id")
+}
 
 enum UserRole {
-  HOSPITAL // Can invite doctors, request blood, register donors
-  BLOOD_BANK // Can register donors only
-  DOCTOR // Can request blood only
+  HOSPITAL
+  BLOOD_BANK
+  DOCTOR
 }
 
 enum BloodGroup {
@@ -47,17 +383,17 @@ enum CameroonRegion {
 }
 
 enum RequestStatus {
-  PENDING // Just created
-  IN_PROGRESS // AI agent is searching
-  FULFILLED // Donor found
-  CANCELLED // Requester cancelled
-  EXPIRED // No donor found in time
+  PENDING
+  IN_PROGRESS
+  FULFILLED
+  CANCELLED
+  EXPIRED
 }
 
 enum RequestUrgency {
-  CRITICAL // Life-threatening
-  URGENT // Needed within hours
-  ROUTINE // Planned procedure
+  CRITICAL
+  URGENT
+  ROUTINE
 }
 
 enum DonorAvailability {
@@ -67,364 +403,45 @@ enum DonorAvailability {
   NO_RESPONSE
 }
 
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
 enum DonorConversationState {
-  ONBOARDING // First conversation in progress
-  IDLE // No active outreach
-  IN_OUTREACH // Currently being contacted for a blood request
-  OPTED_OUT // Donor requested removal — never contact again
+  IDLE
+  AWAITING_AVAILABILITY
+  AWAITING_CONDITION
+  AWAITING_CONFIRMATION
+  ONBOARDING
+  OPTED_OUT
 }
 
 enum BloodBankConversationState {
   IDLE
-  IN_OUTREACH
+  AWAITING_INVENTORY
+  AWAITING_CONFIRMATION
 }
 
 enum OutreachTaskStatus {
   PENDING
   IN_PROGRESS
-  COMPLETE
-}
-
-// ============================================
-// USER AUTHENTICATION & PROFILES
-// ============================================
-
-model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String? // Null for Google-only accounts
-  role         UserRole
-  isActive     Boolean  @default(true)
-  googleId     String?  @unique
-  authProvider String   @default("local") // "local" | "google"
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relationships (one user can be one of these)
-  hospital  Hospital?
-  bloodBank BloodBank?
-  doctor    Doctor?
-
-  // All blood requests made by this user
-  bloodRequests BloodRequest[]
-  refreshTokens RefreshToken[]
-
-  @@map("users") // Table name in database
-}
-
-// Refresh tokens for long-lived sessions. Tokens are stored hashed; cookie contains id.token
-model RefreshToken {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String
-  expiresAt DateTime
-  revoked   Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([expiresAt])
-  @@map("refresh_tokens")
-}
-
-// Hospital Profile (extends User)
-model Hospital {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  name  String
-  phone String
-
-  // Location — Cameroon administrative structure
-  region        CameroonRegion
-  town          String // e.g. "Yaoundé", "Douala", "Bafoussam"
-  neighbourhood String? // Quartier e.g. "Ngousso", "Bonamoussadi"
-  address       String? // Landmark-based detail e.g. "En face du marché Mokolo"
-
-  // Optional precise location
-  latitude  Float?
-  longitude Float?
-
-  // Official registration
-  licenseNumber String? // Numéro d'agrément — issued by Ministère de la Santé Publique
-
-  // Relationships
-  doctors          Doctor[]
-  invites          HospitalInvite[]
-  registeredDonors Donor[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([region, town])
-  @@map("hospitals")
-}
-
-// Blood Bank Profile (extends User)
-model BloodBank {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  name  String
-  phone String @unique
-
-  // Location — Cameroon administrative structure
-  region        CameroonRegion
-  town          String // e.g. "Douala", "Yaoundé", "Bafoussam"
-  neighbourhood String? // Quartier e.g. "Akwa", "Bastos"
-  address       String? // Street/building detail if available (often informal)
-
-  // Optional precise location
-  latitude  Float?
-  longitude Float?
-
-  // Official registration
-  licenseNumber String? // Numéro d'agrément — issued by Ministère de la Santé Publique
-
-  // v2 fields — persistent profile for blood bank relationship
-  contactName        String? // Name of the contact person
-  languagePreference String?                    @default("FR") // "FR" | "EN"
-  conversationState  BloodBankConversationState @default(IDLE)
-
-  // Relationships
-  registeredDonors   Donor[]
-  bloodBankResponses BloodBankResponse[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([region, town])
-  @@map("blood_banks")
-}
-
-// Doctor Profile (extends User, belongs to Hospital)
-model Doctor {
-  id     String @id @default(uuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  hospitalId String
-  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-
-  name           String
-  phone          String
-  specialization String? // e.g., "Cardiology", "Surgery"
-  registrationNo String  @unique // Medical council registration
-
-  hospitalInvite   HospitalInvite?
-  registeredDonors Donor[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([hospitalId]) // Makes queries faster
-  @@map("doctors")
-}
-
-// ============================================
-// HOSPITAL INVITE SYSTEM
-// ============================================
-
-model HospitalInvite {
-  id         String   @id @default(uuid())
-  hospitalId String
-  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
-
-  doctorEmail String
-  status      InviteStatus @default(PENDING)
-
-  // Link to doctor once they register
-  doctorId String? @unique
-  doctor   Doctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
-
-  invitedBy  String? // User ID of hospital admin who sent invite
-  acceptedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([hospitalId, doctorEmail]) // Prevent duplicate invites
-  @@index([hospitalId])
-  @@index([doctorEmail])
-  @@index([status])
-  @@map("hospital_invites")
-}
-
-enum InviteStatus {
-  PENDING // Invite sent, doctor hasn't registered
-  ACCEPTED // Doctor registered and joined hospital
-  REJECTED // Doctor explicitly rejected (optional)
-  CANCELLED // Hospital cancelled the invite
-}
-
-// ============================================
-// DONOR SYSTEM (Privacy-Protected)
-// ============================================
-
-model Donor {
-  id String @id @default(uuid())
-
-  // Registered by
-  hospitalId  String?
-  hospital    Hospital?  @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
-  bloodBankId String?
-  bloodBank   BloodBank? @relation(fields: [bloodBankId], references: [id], onDelete: SetNull)
-  doctorId    String?
-  doctor      Doctor?    @relation(fields: [doctorId], references: [id], onDelete: SetNull)
-
-  // Personal Information (NEVER shown in UI)
-  name          String
-  phone         String         @unique // Primary contact — WhatsApp preferred
-  email         String?
-  dateBirth     DateTime
-  bloodGroup    BloodGroup
-  region        CameroonRegion
-  town          String
-  neighbourhood String?
-  genre         Gender
-
-  // v2 fields — persistent profile for personalised outreach
-  preferredName      String? // What the donor likes to be called
-  languagePreference String?                @default("FR") // "FR" | "EN"
-  conversationState  DonorConversationState @default(IDLE)
-  onboardingComplete Boolean                @default(false)
-  lastDonationDate   DateTime? // Updated after confirmed donation
-  healthNotes        String? // Free text — NOT medical diagnosis
-  availabilityNotes  String? // e.g. "Not available in December"
-  messagesSentCount  Int                    @default(0) // Total outreach messages sent ever
-  optOutAt           DateTime? // Set when donor requests removal
-
-  // AI Agent outreach records
-  donorResponses DonorResponse[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([bloodGroup])
-  @@index([region, town])
-  @@index([hospitalId])
-  @@index([bloodBankId])
-  @@map("donors")
-}
-
-// ============================================
-// BLOOD REQUEST SYSTEM
-// ============================================
-
-model BloodRequest {
-  id String @id @default(uuid())
-
-  // Who made the request?
-  requesterId String
-  requester   User   @relation(fields: [requesterId], references: [id], onDelete: Cascade)
-
-  // What blood is needed?
-  bloodGroup    BloodGroup
-  unitsRequired Int
-  urgency       RequestUrgency
-  status        RequestStatus  @default(PENDING)
-
-  // Patient Information
-  patientName   String
-  patientAge    Int
-  patientGender Gender // ← use your existing enum
-
-  // Location — Cameroon administrative structure
-  hospitalName    String
-  region          CameroonRegion // ← replaces state
-  town            String // ← replaces city
-  neighbourhood   String? // Quartier for precise routing
-  hospitalAddress String? // Landmark-based, optional
-  latitude        Float? // Optional GPS
-  longitude       Float? // Optional GPS
-
-  // Medical Details
-  requiredBy    DateTime
-  medicalReason String?
-
-  // AI Agent Tracking
-  aiProcessedAt     DateTime?
-  donorsContacted   Int       @default(0)
-  willingDonorCount Int       @default(0)
-  reportMarkdown    String? // Final Markdown report generated by AI
-
-  notes String?
-
-  // Agent outreach relations
-  donorResponses     DonorResponse[]
-  bloodBankResponses BloodBankResponse[]
-  outreachTasks      OutreachTask[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([requesterId])
-  @@index([status])
-  @@index([bloodGroup])
-  @@index([urgency])
-  @@index([requiredBy])
-  @@index([region, town])
-  @@map("blood_requests")
-}
-
-// ============================================
-// AGENT OUTREACH RECORDS
-// ============================================
-
-// Records each donor's response to an outreach for a specific blood request
-model DonorResponse {
-  id           String            @id @default(uuid())
-  requestId    String
-  request      BloodRequest      @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  donorId      String
-  donor        Donor             @relation(fields: [donorId], references: [id], onDelete: Cascade)
-  availability DonorAvailability
-  constraint   String? // e.g. "only available after 5pm"
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([requestId, donorId])
-  @@index([requestId])
-  @@map("donor_responses")
-}
-
-// Records each blood bank's availability response for a specific blood request
-model BloodBankResponse {
-  id                     String       @id @default(uuid())
-  requestId              String
-  request                BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  bloodBankId            String
-  bloodBank              BloodBank    @relation(fields: [bloodBankId], references: [id], onDelete: Cascade)
-  available              Boolean
-  unitsAvailable         Int          @default(0)
-  preparationTimeMinutes Int          @default(0)
-  notes                  String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([requestId, bloodBankId])
-  @@index([requestId])
-  @@map("blood_bank_responses")
+  COMPLETED
+  FAILED
 }
 
 // ============================================
 // V2 — PHONE NUMBER REGISTRY
 // ============================================
 
-// Maps E.164 phone numbers to entities (donors or blood banks)
-// Used by WhatsApp webhook to route incoming messages
 model PhoneNumberRegistry {
-  id         String @id @default(uuid())
-  phone      String @unique // E.164 without + (e.g. "237612345678")
-  entityType String // "DONOR" | "BLOOD_BANK"
-  entityId   String // Foreign key to Donor.id or BloodBank.id
-
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  phone      String   @unique
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
 
   @@index([phone])
   @@map("phone_number_registry")
@@ -434,7 +451,6 @@ model PhoneNumberRegistry {
 // V2 — OUTREACH TASK
 // ============================================
 
-// Created by Doctor Coordinator when delegating to Donor Coordinator
 model OutreachTask {
   id              String             @id @default(uuid())
   requestId       String

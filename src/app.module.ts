@@ -14,6 +14,7 @@ import { InternalAgentsModule } from './modules/internal-agents/internal-agents.
 import { BloodRequestsModule } from './modules/blood-requests/blood-requests.module';
 import { WhatsappModule } from './modules/whatsapp/whatsapp.module';
 import { DonorModule } from './modules/donors/donors.module';
+import { FeedbackModule } from './modules/feedback/feedback.module'; // 👈 ADD THIS IMPORT
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { DonorModule } from './modules/donors/donors.module';
     VoltAgentModule,
     WhatsappModule,
     DonorModule,
+    FeedbackModule, // 👈 ADD THIS LINE
   ],
   controllers: [AppController],
   providers: [AppService],
