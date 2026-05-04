@@ -63,21 +63,24 @@ model Hospital {
 }
 
 model BloodBank {
-  id                 String              @id @default(uuid())
-  userId             String              @unique
+  id                 String                      @id @default(uuid())
+  userId             String                      @unique
   name               String
   address            String?
   phone              String
   latitude           Float?
   longitude          Float?
   licenseNumber      String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
   neighbourhood      String?
   region             CameroonRegion
   town               String
+  contactName        String?
+  languagePreference String?                     @default("FR")
+  conversationState  BloodBankConversationState? @default(IDLE)
   bloodBankResponses BloodBankResponse[]
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
   registeredDonors   Donor[]
 
   @@index([region, town])
@@ -125,25 +128,34 @@ model HospitalInvite {
 }
 
 model Donor {
-  id             String          @id @default(uuid())
-  hospitalId     String?
-  bloodBankId    String?
-  name           String
-  email          String?
-  phone          String          @unique
-  bloodGroup     BloodGroup
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  dateBirth      DateTime
-  genre          Gender
-  neighbourhood  String?
-  region         CameroonRegion
-  town           String
-  doctorId       String?
-  donorResponses DonorResponse[]
-  bloodBank      BloodBank?      @relation(fields: [bloodBankId], references: [id])
-  doctor         Doctor?         @relation(fields: [doctorId], references: [id])
-  hospital       Hospital?       @relation(fields: [hospitalId], references: [id])
+  id                 String                  @id @default(uuid())
+  hospitalId         String?
+  bloodBankId        String?
+  name               String
+  email              String?
+  phone              String                  @unique
+  bloodGroup         BloodGroup
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  dateBirth          DateTime
+  genre              Gender
+  neighbourhood      String?
+  region             CameroonRegion
+  town               String
+  doctorId           String?
+  preferredName      String?
+  languagePreference String?                 @default("FR")
+  healthNotes        String?
+  lastDonationDate   DateTime?
+  optOutAt           DateTime?
+  messagesSentCount  Int                     @default(0)
+  onboardingComplete Boolean                 @default(false)
+  availabilityNotes  String?
+  conversationState  DonorConversationState? @default(IDLE)
+  donorResponses     DonorResponse[]
+  bloodBank          BloodBank?              @relation(fields: [bloodBankId], references: [id])
+  doctor             Doctor?                 @relation(fields: [doctorId], references: [id])
+  hospital           Hospital?               @relation(fields: [hospitalId], references: [id])
 
   @@index([bloodGroup])
   @@index([region, town])
@@ -178,10 +190,12 @@ model BloodRequest {
   patientGender      Gender
   willingDonorCount  Int                 @default(0)
   reportMarkdown     String?
+  completedAt        DateTime?
   bloodBankResponses BloodBankResponse[]
   requester          User                @relation(fields: [requesterId], references: [id], onDelete: Cascade)
   donorResponses     DonorResponse[]
-  feedbacks          Feedback?
+  feedbacks          Feedback[]
+  outreachTasks      OutreachTask[]
 
   @@index([requesterId])
   @@index([status])
@@ -396,19 +410,38 @@ enum InviteStatus {
   CANCELLED
 }
 
+enum DonorConversationState {
+  IDLE
+  AWAITING_AVAILABILITY
+  AWAITING_CONDITION
+  AWAITING_CONFIRMATION
+  ONBOARDING
+  OPTED_OUT
+}
+
+enum BloodBankConversationState {
+  IDLE
+  AWAITING_INVENTORY
+  AWAITING_CONFIRMATION
+}
+
+enum OutreachTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
 // ============================================
 // V2 — PHONE NUMBER REGISTRY
 // ============================================
 
-// Maps E.164 phone numbers to entities (donors or blood banks)
-// Used by WhatsApp webhook to route incoming messages
 model PhoneNumberRegistry {
-  id         String @id @default(uuid())
-  phone      String @unique // E.164 without + (e.g. "237612345678")
-  entityType String // "DONOR" | "BLOOD_BANK"
-  entityId   String // Foreign key to Donor.id or BloodBank.id
-
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  phone      String   @unique
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
 
   @@index([phone])
   @@map("phone_number_registry")
@@ -418,7 +451,6 @@ model PhoneNumberRegistry {
 // V2 — OUTREACH TASK
 // ============================================
 
-// Created by Doctor Coordinator when delegating to Donor Coordinator
 model OutreachTask {
   id              String             @id @default(uuid())
   requestId       String
