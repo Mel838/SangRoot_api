@@ -37,7 +37,7 @@ export function createCoordinatorAgent(config: ConfigService): Agent {
     model: 'openai/gpt-4o-mini',
     tools: donorOutreachAgentTools,
     memory: sharedMemory,
-    maxSteps: 7,
+    maxSteps: 4,
   });
 
   // ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ export function createCoordinatorAgent(config: ConfigService): Agent {
     model: 'openai/gpt-4o-mini',
     tools: bloodBankLiaisonAgentTools,
     memory: sharedMemory,
-    maxSteps: 7,
+    maxSteps: 4,
   });
 
   // ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ export function createCoordinatorAgent(config: ConfigService): Agent {
     model: 'openai/gpt-4o-mini',
     tools: eligibilityTimingAgentTools,
     memory: sharedMemory,
-    maxSteps: 7,
+    maxSteps: 3,
   });
 
   // ---------------------------------------------------------------------------
@@ -73,7 +73,7 @@ export function createCoordinatorAgent(config: ConfigService): Agent {
     model: 'openai/gpt-4o-mini',
     tools: resultReportingAgentTools,
     memory: sharedMemory,
-    maxSteps: 7,
+    maxSteps: 4,
   });
 
   // ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ export function createCoordinatorAgent(config: ConfigService): Agent {
     instructions: getCoordinatorAgentInstructions,
     model: 'openai/gpt-4o-mini',
     memory: sharedMemory,
-    maxSteps: 10,
+    maxSteps: 8,
     tools: coordinatorAgentTools,
     subAgents: [
       donorOutreachAgent,
