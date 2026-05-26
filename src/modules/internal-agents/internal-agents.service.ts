@@ -121,7 +121,11 @@ export class InternalAgentsService {
           `urgency: ${dto.urgency}, region: ${dto.region}, town: ${dto.town}, ` +
           `units needed: ${dto.unitsNeeded}. Begin donor and blood bank outreach now.`,
         {
-          userId: `outreach:${dto.requestId}`,
+          memory: {
+            userId: `outreach:${dto.requestId}`,
+            conversationId: task.id,
+            options: { contextLimit: 50 },
+          },
           context,
         },
       )

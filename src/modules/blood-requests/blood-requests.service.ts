@@ -104,7 +104,11 @@ export class BloodRequestsService {
     this.logger.log(`Triggering Doctor Coordinator for request ${request.id}`);
 
     await this.coordinator.generateText(message, {
-      userId: request.id, // Use request ID as session identifier
+      memory: {
+        userId: request.id,
+        conversationId: request.id,
+        options: { contextLimit: 50 },
+      },
       context: new Map<string | symbol, unknown>([
         ['doctorCoordinatorContext', doctorContext],
       ]),
