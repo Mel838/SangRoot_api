@@ -234,7 +234,11 @@ export class WhatsappService {
     // Fire-and-forget — do not block the webhook response
     this.donorCoordinator
       .generateText(agentMessage, {
-        userId: sessionKey,
+        memory: {
+          userId: sessionKey,
+          conversationId: activeRequestId ?? `session:${entityId}`,
+          options: { contextLimit: 50 },
+        },
         context: new Map<string | symbol, unknown>([
           ['donorCoordinatorContext', donorContext],
         ]),

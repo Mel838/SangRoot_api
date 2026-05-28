@@ -32,7 +32,7 @@ export function createDoctorCoordinatorAgent(config: ConfigService): Agent {
     instructions: getDoctorCoordinatorPrompt,
     model: 'openai/gpt-4o',
     memory: sharedMemory,
-    maxSteps: 10, // reduced from 15 — each step serializes the full message array
+    maxSteps: 12, // 8-step workflow + buffer for sub-agent round-trips
     tools: doctorCoordinatorTools,
     subAgents: [
       triageAgent,

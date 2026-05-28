@@ -5,6 +5,26 @@ import { Pool } from 'pg';
 
 const logger = new Logger('BloodBankTools');
 
+// ---------------------------------------------------------------------------
+// Singleton DB pool — created once per process, never per tool call.
+// Creating a new Pool() on every invocation exhausts connection limits and
+// causes the agent to freeze waiting for a connection slot.
+// ---------------------------------------------------------------------------
+let _pool: Pool | null = null;
+function getPool(): Pool {
+  if (!_pool) {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) throw new Error('DATABASE_URL not set');
+    _pool = new Pool({
+      connectionString,
+      max: 3, // keep the ceiling low — these are read-only history queries
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+    });
+  }
+  return _pool;
+}
+
 const API_URL = () => process.env.INTERNAL_API_URL ?? 'http://localhost:3000';
 const API_KEY = () => process.env.AGENT_API_KEY ?? '';
 
@@ -128,18 +148,18 @@ export const loadBloodBankConversation = createTool({
     limit: z.number().int().min(1).max(20).default(10),
   }),
   execute: async ({ bankId, limit }) => {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl)
-      return { success: false, error: 'DATABASE_URL not set', messages: [] };
-
-    const pool = new Pool({ connectionString: databaseUrl });
+    let client;
     try {
+      const pool = getPool();
+      client = await pool.connect();
+      // 5-second hard cap — a missing table must never freeze the agent
+      await client.query('SET statement_timeout = 5000');
       const userId = `bloodbank:${bankId}`;
-      const result = await pool.query(
-        `SELECT role, parts, created_at 
-         FROM sangroot_agent_memory_messages 
-         WHERE user_id = $1 
-         ORDER BY created_at DESC 
+      const result = await client.query(
+        `SELECT role, parts, created_at
+         FROM sangroot_agent_memory_messages
+         WHERE user_id = $1
+         ORDER BY created_at DESC
          LIMIT $2`,
         [userId, limit],
       );
@@ -155,15 +175,11 @@ export const loadBloodBankConversation = createTool({
                   ? part.text
                   : JSON.stringify(p);
               })
-              .join('\\n');
+              .join('\n');
           } else {
             content = String(row.parts);
           }
-          return {
-            role: row.role,
-            content,
-            timestamp: row.created_at,
-          };
+          return { role: row.role, content, timestamp: row.created_at };
         });
       return { success: true, messages, total: messages.length };
     } catch (err) {
@@ -176,7 +192,7 @@ export const loadBloodBankConversation = createTool({
         note: 'No history found',
       };
     } finally {
-      await pool.end();
+      client?.release();
     }
   },
 });

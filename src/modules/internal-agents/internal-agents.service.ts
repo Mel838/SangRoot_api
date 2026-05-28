@@ -97,7 +97,10 @@ export class InternalAgentsService {
       },
     });
 
-    // ── Trigger Donor Coordinator agent (fire-and-forget) ──────────────
+    // ── Trigger Donor Coordinator agent (fire-and-forget).
+    //    The trigger_donor_coordinator tool in doctor-coordinator/tools.ts polls
+    //    GET /outreach-progress/:requestId until status === COMPLETE, so the
+    //    doctor coordinator does not need this endpoint to block.
     const context = new Map<string | symbol, unknown>([
       [
         'donorCoordinatorContext',
@@ -129,11 +132,15 @@ export class InternalAgentsService {
           context,
         },
       )
-      .then(() =>
+      .then(() => {
         this.logger.log(
           `Donor Coordinator finished outreach for request ${dto.requestId}`,
-        ),
-      )
+        );
+        return this.prisma.outreachTask.update({
+          where: { id: task.id },
+          data: { status: OutreachTaskStatus.COMPLETE },
+        });
+      })
       .catch((err) =>
         this.logger.error(
           `Donor Coordinator outreach failed for request ${dto.requestId}`,
