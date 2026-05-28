@@ -30,6 +30,16 @@ export class BloodRequestsController {
   }
 
   /**
+   * GET /blood-requests
+   * Retrieves all blood requests made by the authenticated doctor.
+   */
+  @Get()
+  @Roles(UserRole.DOCTOR, UserRole.HOSPITAL)
+  async findAll(@CurrentUser() user: CurrentUserType) {
+    return this.bloodRequestsService.findAllForDoctor(user.userId);
+  }
+
+  /**
    * GET /blood-requests/:id/progress
    * Retrieves the real-time AI progress (donor & blood bank positive responses)
    */
