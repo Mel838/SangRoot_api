@@ -65,7 +65,7 @@ async function sendWhatsAppMessage(options: { to: string; body: string }) {
 export const triggerDonorCoordinator = createTool({
   name: 'trigger_donor_coordinator',
   description:
-    'Delegates an outreach task to the Donor Coordinator. Call this once per blood request after triage is complete. Returns a taskId for progress tracking.',
+    'Delegates an outreach task to the Donor Coordinator. Blocks until the outreach is complete (status: COMPLETE) before returning, so the doctor coordinator can proceed directly to the eligibility report.',
   parameters: z.object({
     requestId: z.string().uuid(),
     bloodGroup: z.string(),
@@ -77,6 +77,8 @@ export const triggerDonorCoordinator = createTool({
     timeoutMinutes: z.number().int().min(1),
   }),
   execute: async (params) => {
+    // Step 1: Create the outreach task (returns immediately with IN_PROGRESS).
+    let taskId: string;
     try {
       const res = await fetch(`${API_URL()}/internal/agents/outreach-tasks`, {
         method: 'POST',
@@ -85,12 +87,52 @@ export const triggerDonorCoordinator = createTool({
       });
       if (!res.ok) return { success: false, error: `API error: ${res.status}` };
       const data = (await res.json()) as { taskId: string; status: string };
-      return { success: true, taskId: data.taskId, status: data.status };
+      taskId = data.taskId;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(`trigger_donor_coordinator failed: ${msg}`);
       return { success: false, error: msg };
     }
+
+    // Step 2: Poll outreach-progress until the donor coordinator finishes
+    // (marks status COMPLETE) or until the polling window expires.
+    // Polling avoids holding an HTTP connection open during the multi-minute run.
+    const POLL_INTERVAL_MS = 15_000; // 15 seconds between checks
+    const MAX_WAIT_MS = 12 * 60 * 1000; // 12-minute ceiling regardless of urgency
+    const deadline = Date.now() + MAX_WAIT_MS;
+
+    while (Date.now() < deadline) {
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, POLL_INTERVAL_MS),
+      );
+
+      try {
+        const progressRes = await fetch(
+          `${API_URL()}/internal/agents/outreach-progress/${params.requestId}`,
+          { headers: headers() },
+        );
+        if (progressRes.ok) {
+          const progress = (await progressRes.json()) as {
+            status: string;
+            taskId: string | null;
+          };
+          if (progress.status === 'COMPLETE') {
+            logger.log(
+              `Outreach complete for request ${params.requestId} (taskId: ${taskId})`,
+            );
+            return { success: true, taskId, status: 'COMPLETE' };
+          }
+        }
+      } catch {
+        // Transient error — keep polling
+      }
+    }
+
+    // Polling window expired — outreach is still running but proceed anyway.
+    logger.warn(
+      `Outreach polling timed out for request ${params.requestId}. Proceeding to eligibility report with available data.`,
+    );
+    return { success: true, taskId, status: 'TIMEOUT' };
   },
 });
 

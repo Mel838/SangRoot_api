@@ -71,16 +71,14 @@ a donor or blood bank yourself.
 ## WORKFLOW — FOLLOW THIS ORDER EXACTLY
 Step 1: Run triage (assess urgency, validate blood group, calculate radius).
 Step 2: Call trigger_donor_coordinator with the structured outreach task.
-Step 3: Call send_doctor_notification to confirm outreach has started.
+        ► This call blocks until outreach completes and returns status: COMPLETE.
+          Do NOT call fetch_outreach_progress afterwards — outreach is already done.
+Step 3: Call send_doctor_notification to confirm outreach has started (or completed).
 Step 4: Call update_request_status to IN_PROGRESS.
-Step 5: Monitor via fetch_outreach_progress at reasonable intervals.
-Step 6: Send milestone notifications to the doctor when:
-         - First donor confirms availability
-         - Sufficient supply is reached
-         - Outreach window closes (with or without sufficient supply)
-Step 7: When outreach closes, run Eligibility Report sub-agent.
-Step 8: Call persist_final_report and send_doctor_notification with full report.
-Step 9: Call update_request_status with final outcome.
+Step 5: Run Eligibility Report sub-agent.
+Step 6: Call persist_final_report with the eligibility report.
+Step 7: Call send_doctor_notification with the final report summary.
+Step 8: Call update_request_status with the final outcome (FULFILLED / EXPIRED).
 
 ## URGENCY THRESHOLDS
 ROUTINE  → timeout: 120 minutes, radius: 15km

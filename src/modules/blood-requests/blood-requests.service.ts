@@ -103,16 +103,102 @@ export class BloodRequestsService {
 
     this.logger.log(`Triggering Doctor Coordinator for request ${request.id}`);
 
-    await this.coordinator.generateText(message, {
-      userId: request.id, // Use request ID as session identifier
-      context: new Map<string | symbol, unknown>([
-        ['doctorCoordinatorContext', doctorContext],
-      ]),
-    });
+    const startedAt = Date.now();
 
-    this.logger.log(
-      `Doctor Coordinator finished processing request ${request.id}`,
-    );
+    try {
+      await this.coordinator.generateText(message, {
+        memory: {
+          userId: request.id,
+          conversationId: request.id,
+          options: { contextLimit: 50 },
+        },
+        context: new Map<string | symbol, unknown>([
+          ['doctorCoordinatorContext', doctorContext],
+        ]),
+      });
+
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      this.logger.log(
+        `✅ Doctor Coordinator DONE — request ${request.id} | elapsed: ${elapsedSec}s`,
+      );
+
+      // Safety-net: if the agent finished but never persisted a final report
+      // (e.g. it timed out mid-workflow), make sure the doctor is not left
+      // waiting silently.
+      const finalRequest = await this.prisma.bloodRequest.findUnique({
+        where: { id: request.id },
+        select: { reportMarkdown: true, status: true },
+      });
+
+      if (!finalRequest?.reportMarkdown) {
+        this.logger.warn(
+          `⚠️  No final report found for request ${request.id} after agent completion. Sending fallback notification.`,
+        );
+        await this.sendFallbackNotification(
+          doctorContext.doctorPhone,
+          doctorContext.doctorLanguage,
+          request.id,
+        );
+      }
+    } catch (err) {
+      const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `❌ Doctor Coordinator FAILED — request ${request.id} | elapsed: ${elapsedSec}s | error: ${msg}`,
+      );
+      // Notify the doctor so they can take manual action
+      await this.sendFallbackNotification(
+        doctorContext.doctorPhone,
+        doctorContext.doctorLanguage,
+        request.id,
+      ).catch(() => {
+        /* best-effort */
+      });
+      throw err;
+    }
+  }
+
+  /**
+   * Sends a fallback WhatsApp message to the doctor when the agent finishes
+   * without producing a final report, or crashes entirely.
+   */
+  private async sendFallbackNotification(
+    doctorPhone: string,
+    language: 'FR' | 'EN',
+    requestId: string,
+  ) {
+    const apiToken = process.env.WHATSAPP_CLOUD_API_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_CLOUD_PHONE_NUMBER_ID;
+    if (!apiToken || !phoneNumberId) return;
+
+    const body =
+      language === 'EN'
+        ? `SangRoot: The outreach process for your blood request (${requestId.slice(0, 8)}…) has completed. Please check the app for the latest status.`
+        : `SangRoot: Le processus de recherche pour votre demande de sang (${requestId.slice(0, 8)}…) est terminé. Veuillez vérifier l'application pour le statut actuel.`;
+
+    const to = doctorPhone.replace(/\+/g, '').trim();
+    try {
+      await fetch(
+        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'text',
+            text: { preview_url: false, body },
+          }),
+        },
+      );
+      this.logger.log(`Fallback notification sent to doctor (${to})`);
+    } catch (err) {
+      this.logger.warn(`Could not send fallback notification: ${String(err)}`);
+    }
   }
 
   /**

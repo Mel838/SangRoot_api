@@ -130,7 +130,11 @@ export class DonorsService {
       .generateText(
         `New donor registered: ${donor.name} (${donor.phone}). Start onboarding conversation.`,
         {
-          userId: sessionKey,
+          memory: {
+            userId: sessionKey,
+            conversationId: `onboarding:${donor.id}`,
+            options: { contextLimit: 30 },
+          },
           context: new Map<string | symbol, unknown>([
             ['donorCoordinatorContext', donorContext],
           ]),
