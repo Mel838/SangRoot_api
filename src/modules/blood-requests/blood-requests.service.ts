@@ -252,4 +252,25 @@ export class BloodRequestsService {
       bloodBanks: bloodBankSummary,
     };
   }
+
+  /**
+   * Retrieves all blood requests made by a specific doc
+   */
+  async findAllForDoctor(userId: string) {
+    return this.prisma.bloodRequest.findMany({
+      where: { requesterId: userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        bloodGroup: true,
+        unitsRequired: true,
+        urgency: true,
+        status: true,
+        hospitalName: true,
+        patientName: true,
+        requiredBy: true,
+        createdAt: true,
+      },
+    });
+  }
 }
