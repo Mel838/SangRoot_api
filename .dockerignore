@@ -1,0 +1,29 @@
+# Version control
+.git
+.gitignore
+
+# Node modules (rebuilt inside Docker)
+node_modules
+
+# Build output (rebuilt inside Docker)
+dist
+
+# Logs (don't bake runtime logs into image)
+logs
+*.log
+
+# Dev / test files
+.env
+.env.*
+!.env.example
+coverage
+*.test.ts
+*.spec.ts
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
