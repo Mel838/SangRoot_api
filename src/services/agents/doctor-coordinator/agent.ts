@@ -10,13 +10,19 @@ import { createEligibilityReportAgent } from './sub-agents/eligibility-report.ag
 import { createEscalationAgent } from './sub-agents/escalation.agent';
 
 export function createDoctorCoordinatorAgent(config: ConfigService): Agent {
-  const databaseUrl = config.get<string>('DATABASE_URL');
+  const rawUrl = config.get<string>('DATABASE_URL') ?? '';
+  const databaseUrl = rawUrl.split('?')[0]; // strip ?schema=... Prisma param
   if (!databaseUrl)
     throw new Error('[DoctorCoordinator] Missing DATABASE_URL env variable');
 
   const sharedMemory = new Memory({
     storage: new PostgreSQLMemoryAdapter({
-      connection: databaseUrl,
+      connection: {
+        connectionString: databaseUrl,
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      } as any,
       tablePrefix: 'sangroot_agent_memory',
     }),
   });
