@@ -14,13 +14,19 @@ import { createEligibilityCheckerAgent } from './sub-agents/eligibility-checker.
 import { createProfileUpdaterAgent } from './sub-agents/profile-updater.agent';
 
 export function createDonorCoordinatorAgent(config: ConfigService): Agent {
-  const databaseUrl = config.get<string>('DATABASE_URL');
+  const rawUrl = config.get<string>('DATABASE_URL') ?? '';
+  const databaseUrl = rawUrl.split('?')[0]; // strip ?schema=... Prisma param
   if (!databaseUrl)
     throw new Error('[DonorCoordinator] Missing DATABASE_URL env variable');
 
   const sharedMemory = new Memory({
     storage: new PostgreSQLMemoryAdapter({
-      connection: databaseUrl,
+      connection: {
+        connectionString: databaseUrl,
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      } as any,
       tablePrefix: 'sangroot_agent_memory',
     }),
   });
